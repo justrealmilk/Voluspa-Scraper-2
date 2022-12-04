@@ -1,0 +1,6 @@
+{
+  "script": "node --experimental-repl-await scrape.mjs --color",
+  "watch": true,
+  "ignore_watch": ["node_modules", "temp", "cache"],
+  "name": "Voluspa-Scraper"
+}
