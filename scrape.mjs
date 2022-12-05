@@ -24,6 +24,7 @@ await bungieQueue.destroy();
 
 // setup basic db stuff
 const pool = mysql.createPool({
+  host: process.env.MYSQL_HOST,
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
@@ -235,9 +236,10 @@ async function processJob(job) {
 
         const date = new Date();
 
-        query(
-          mysql.format(
-            `INSERT INTO voluspa.profiles (
+        if (process.env.STORE_JOB_RESULTS) {
+          query(
+            mysql.format(
+              `INSERT INTO voluspa.profiles (
                   membershipType,
                   membershipId,
                   displayName,
@@ -253,29 +255,30 @@ async function processJob(job) {
                   ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
               ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, sumPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
-            [
-              job.data.membershipType,
-              job.data.membershipId,
-              PreparedValues.displayName,
-              date, //
-              PreparedValues.lastPlayed,
-              PreparedValues.sumPlayed,
-              PreparedValues.triumphScore,
-              PreparedValues.legacyScore,
-              PreparedValues.activeScore,
-              collections.length,
-              // update...
-              PreparedValues.displayName,
-              date, //
-              PreparedValues.lastPlayed,
-              PreparedValues.sumPlayed,
-              PreparedValues.triumphScore,
-              PreparedValues.legacyScore,
-              PreparedValues.activeScore,
-              collections.length,
-            ]
-          )
-        );
+              [
+                job.data.membershipType,
+                job.data.membershipId,
+                PreparedValues.displayName,
+                date, //
+                PreparedValues.lastPlayed,
+                PreparedValues.sumPlayed,
+                PreparedValues.triumphScore,
+                PreparedValues.legacyScore,
+                PreparedValues.activeScore,
+                collections.length,
+                // update...
+                PreparedValues.displayName,
+                date, //
+                PreparedValues.lastPlayed,
+                PreparedValues.sumPlayed,
+                PreparedValues.triumphScore,
+                PreparedValues.legacyScore,
+                PreparedValues.activeScore,
+                collections.length,
+              ]
+            )
+          );
+        }
       } else if (response.ErrorCode === 0) {
         throw new Error(`${job.data.membershipId} (${job.id}): HTTP failure`);
       } else {
