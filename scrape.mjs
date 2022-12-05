@@ -124,7 +124,7 @@ async function processJob(job) {
     requestsMade++;
 
     // const fetchStart = performance.now();
-    const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,104,200,800,900`);
+    const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
     // const fetchEnd = performance.now();
 
     // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
@@ -245,23 +245,21 @@ async function processJob(job) {
                   displayName,
                   lastUpdated,
                   lastPlayed,
-                  sumPlayed,
                   triumphScore,
                   legacyScore,
                   activeScore,
                   collectionsTotal
                 )
               VALUES (
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
-              ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, sumPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
+              ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
               [
                 job.data.membershipType,
                 job.data.membershipId,
                 PreparedValues.displayName,
                 date, //
                 PreparedValues.lastPlayed,
-                PreparedValues.sumPlayed,
                 PreparedValues.triumphScore,
                 PreparedValues.legacyScore,
                 PreparedValues.activeScore,
@@ -270,7 +268,6 @@ async function processJob(job) {
                 PreparedValues.displayName,
                 date, //
                 PreparedValues.lastPlayed,
-                PreparedValues.sumPlayed,
                 PreparedValues.triumphScore,
                 PreparedValues.legacyScore,
                 PreparedValues.activeScore,
