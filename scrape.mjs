@@ -119,6 +119,10 @@ bungieQueue.process(concurrencyLimit, processJob);
 
 async function processJob(job) {
   try {
+    /**
+     * 1. when only fetch runs, requests complete in ~15 seconds
+     */
+
     // const fetchStart = performance.now();
     const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
     // const fetchEnd = performance.now();
@@ -126,6 +130,16 @@ async function processJob(job) {
     // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
 
     // return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
+
+    /**
+     * 2. when the response returned by the fetch function is accessed by the below code,
+     *    code which completes consistently in less than 15ms,
+     *    the fetch function instead takes ~45 seconds to complete.
+     * 
+     *    the first 30 runs complete in a reasonable time, but quickly balloon out.
+     * 
+     *    current theory: accessing the response causes it to persist and shit
+     */
 
     // const jobStart = performance.now();
     if (response && response.ErrorCode !== undefined) {
