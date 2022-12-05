@@ -236,7 +236,7 @@ async function processJob(job) {
 
         const date = new Date();
 
-        if (process.env.STORE_JOB_RESULTS) {
+        if (process.env.STORE_JOB_RESULTS === 'true') {
           query(
             mysql.format(
               `INSERT INTO voluspa.profiles (
@@ -319,7 +319,7 @@ async function updateLog() {
     await fs.promises.writeFile('./temp/parallel-program.json', JSON.stringify(StatsParallelProgram));
     console.log('Saved Parallel Program stats to disk');
 
-    if (process.env.STORE_JOB_RESULTS) {
+    if (process.env.STORE_JOB_RESULTS === 'true') {
       await query(mysql.format(`INSERT INTO voluspa.scrapes_status (scrape, duration, members) VALUES (?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobSuccessful]));
 
       const ranks = await query(`SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
