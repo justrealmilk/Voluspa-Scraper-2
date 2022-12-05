@@ -113,18 +113,14 @@ bungieQueue.on('job failed', (id, error) => {
 });
 
 const scrapeStart = new Date();
-let requestsMade = 0;
-let requestsTime = Date.now();
 
 // ignition
 bungieQueue.process(concurrencyLimit, processJob);
 
 async function processJob(job) {
   try {
-    requestsMade++;
-
     // const fetchStart = performance.now();
-    const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,104,200,800,900`);
+    const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
     // const fetchEnd = performance.now();
 
     // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
@@ -245,23 +241,21 @@ async function processJob(job) {
                   displayName,
                   lastUpdated,
                   lastPlayed,
-                  sumPlayed,
                   triumphScore,
                   legacyScore,
                   activeScore,
                   collectionsTotal
                 )
               VALUES (
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                  ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
-              ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, sumPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
+              ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
               [
                 job.data.membershipType,
                 job.data.membershipId,
                 PreparedValues.displayName,
                 date, //
                 PreparedValues.lastPlayed,
-                PreparedValues.sumPlayed,
                 PreparedValues.triumphScore,
                 PreparedValues.legacyScore,
                 PreparedValues.activeScore,
@@ -270,7 +264,6 @@ async function processJob(job) {
                 PreparedValues.displayName,
                 date, //
                 PreparedValues.lastPlayed,
-                PreparedValues.sumPlayed,
                 PreparedValues.triumphScore,
                 PreparedValues.legacyScore,
                 PreparedValues.activeScore,
@@ -396,10 +389,7 @@ async function updateLog() {
     ]);
   }
 
-  console.log(`${jobProgress}/${jobCompletionValue} // ${((jobProgress / jobCompletionValue) * 100).toFixed(3)}% // ${Math.ceil((Date.now() - scrapeStart.getTime()) / 60000)}m elapsed, ~${Math.floor((((Date.now() - scrapeStart.getTime()) / jobProgress) * (jobCompletionValue - jobProgress)) / 60000)}m remaining // ${((Date.now() - requestsTime) / requestsMade).toFixed(2)}/rps / Parallel Programs: ${StatsParallelProgram.length}`);
-
-  requestsMade = 0;
-  requestsTime = Date.now();
+  console.log(`${jobProgress}/${jobCompletionValue} // ${((jobProgress / jobCompletionValue) * 100).toFixed(3)}% // ${Math.ceil((Date.now() - scrapeStart.getTime()) / 60000)}m elapsed, ~${Math.floor((((Date.now() - scrapeStart.getTime()) / jobProgress) * (jobCompletionValue - jobProgress)) / 60000)}m remaining // Parallel Programs: ${StatsParallelProgram.length}`);
 }
 
 const updateIntervalTimer = setInterval(updateLog, 10000);

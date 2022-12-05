@@ -9,16 +9,11 @@ export function values(response) {
     lastPlayed = null;
   }
 
-  const sumPlayed = Object.keys(response.Response.characters.data).reduce((sum, key) => {
-    return sum + (Number(response.Response.characters.data[key].minutesPlayedTotal) || 0);
-  }, 0);
-
   return {
     membershipType,
     membershipId,
     displayName,
     lastPlayed,
-    sumPlayed,
     triumphScore: response.Response.profileRecords.data.lifetimeScore,
     legacyScore: response.Response.profileRecords.data.legacyScore,
     activeScore: response.Response.profileRecords.data.activeScore,
