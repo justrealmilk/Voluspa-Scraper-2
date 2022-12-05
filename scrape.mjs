@@ -12,7 +12,7 @@ import { values } from './dataUtils.mjs';
 
 console.log(chalk.hex('#e3315b')('VOLUSPA'));
 
-const concurrencyLimit = 500;
+const concurrencyLimit = 24;
 
 // connect queue
 const bungieQueue = new Queue('bungie', {
@@ -28,7 +28,7 @@ const pool = mysql.createPool({
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
-  connectionLimit: 100,
+  connectionLimit: 24,
   supportBigNumbers: true,
   multipleStatements: true,
   charset: 'utf8mb4',
@@ -236,7 +236,7 @@ async function processJob(job) {
 
         const date = new Date();
 
-        if (process.env.STORE_JOB_RESULTS) {
+        if (process.env.STORE_JOB_RESULTS === 'true') {
           query(
             mysql.format(
               `INSERT INTO voluspa.profiles (
@@ -319,7 +319,7 @@ async function updateLog() {
     await fs.promises.writeFile('./temp/parallel-program.json', JSON.stringify(StatsParallelProgram));
     console.log('Saved Parallel Program stats to disk');
 
-    if (process.env.STORE_JOB_RESULTS) {
+    if (process.env.STORE_JOB_RESULTS === 'true') {
       await query(mysql.format(`INSERT INTO voluspa.scrapes_status (scrape, duration, members) VALUES (?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobSuccessful]));
 
       const ranks = await query(`SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
