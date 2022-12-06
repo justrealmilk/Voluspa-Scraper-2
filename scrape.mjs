@@ -47,7 +47,6 @@ for (let i = 0; i < members.length + 100000; i += 100000) {
   await bungieQueue
     .saveAll(
       members
-        // .filter((_, m) => m >= i && m < i + 100000)
         .slice(i, i + 100000)
         .map((member) =>
           bungieQueue
