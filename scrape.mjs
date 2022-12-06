@@ -34,26 +34,6 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
-pool.getConnection((err, connection) => {
-  if (err) {
-    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      console.error('Database connection was closed.');
-    }
-    if (err.code === 'ER_CON_COUNT_ERROR') {
-      console.error('Database has too many connections.');
-    }
-    if (err.code === 'ECONNREFUSED') {
-      console.error('Database connection was refused.');
-    }
-  }
-
-  if (connection) {
-    connection.release();
-  }
-
-  return;
-});
-
 // make db query async
 const query = util.promisify(pool.query).bind(pool);
 
@@ -142,158 +122,8 @@ async function processJob(job) {
      */
 
     // const jobStart = performance.now();
-    if (response && response.ErrorCode !== undefined) {
-      if (response.ErrorCode === 1) {
-        if (response.Response.profileRecords.data === undefined || Object.keys(response.Response.characterCollectibles.data).length === 0) {
-          let displayName = '';
 
-          try {
-            displayName = response.Response.profile.data.userInfo.displayName;
-          } catch (e) {}
-
-          query(mysql.format(`UPDATE members SET isPrivate = '1' WHERE membershipId = ?`, [job.data.membershipId]));
-
-          job.retries(0);
-
-          throw new Error(`${job.data.membershipId} (${job.id}): ${displayName}'s profile is private`);
-        }
-
-        const triumphs = [];
-        const collections = [];
-
-        // triumphs (profile scope)
-        for (const hash in response.Response.profileRecords.data.records) {
-          const record = response.Response.profileRecords.data.records[hash];
-
-          if (record.intervalObjectives && record.intervalObjectives.length) {
-            if (record.intervalObjectives.some((objective) => objective.complete) && record.intervalObjectives.filter((objective) => objective.complete).length === record.intervalObjectives.length) {
-              triumphs.push(hash);
-            }
-          } else {
-            if (!!(record.state & 1) || !!!(record.state & 4)) {
-              triumphs.push(hash);
-            }
-          }
-        }
-
-        // triumphs (character scope)
-        for (const characterId in response.Response.characterRecords.data) {
-          for (const hash in response.Response.characterRecords.data[characterId].records) {
-            const record = response.Response.characterRecords.data[characterId].records[hash];
-
-            if (triumphs.indexOf(hash) === -1) {
-              if (record.intervalObjectives && record.intervalObjectives.length) {
-                if (record.intervalObjectives.some((objective) => objective.complete) && record.intervalObjectives.filter((objective) => objective.complete).length === record.intervalObjectives.length) {
-                  triumphs.push(hash);
-                }
-              } else {
-                if (!!(record.state & 1) || !!!(record.state & 4)) {
-                  triumphs.push(hash);
-                }
-              }
-            }
-          }
-        }
-
-        // collections (profile scope)
-        for (const hash in response.Response.profileCollectibles.data.collectibles) {
-          if (!!!(response.Response.profileCollectibles.data.collectibles[hash].state & 1)) {
-            collections.push(hash);
-          }
-        }
-
-        // collections (character scope)
-        for (const characterId in response.Response.characterCollectibles.data) {
-          for (const hash in response.Response.characterCollectibles.data[characterId].collectibles) {
-            if (!!!(response.Response.characterCollectibles.data[characterId].collectibles[hash].state & 1)) {
-              if (collections.indexOf(hash) === -1) {
-                collections.push(hash);
-              }
-            }
-          }
-        }
-
-        // for spying 🥸
-        if (collections.indexOf('3316003520') > -1) {
-          StatsParallelProgram.push({
-            membershipType: job.data.membershipType,
-            membershipId: job.data.membershipId,
-          });
-        }
-
-        for (let index = 0; index < triumphs.length; index++) {
-          const hash = triumphs[index];
-
-          if (StatsTriumphs[hash]) {
-            StatsTriumphs[hash]++;
-          } else {
-            StatsTriumphs[hash] = 1;
-          }
-        }
-
-        for (let index = 0; index < collections.length; index++) {
-          const hash = collections[index];
-
-          if (StatsTriumphs[hash]) {
-            StatsCollections[hash]++;
-          } else {
-            StatsCollections[hash] = 1;
-          }
-        }
-
-        // values specifically for storing in the database for things like leaderboards
-        const PreparedValues = values(response);
-
-        const date = new Date();
-
-        if (process.env.STORE_JOB_RESULTS === 'true') {
-          query(
-            mysql.format(
-              `INSERT INTO voluspa.profiles (
-                  membershipType,
-                  membershipId,
-                  displayName,
-                  lastUpdated,
-                  lastPlayed,
-                  triumphScore,
-                  legacyScore,
-                  activeScore,
-                  collectionsTotal
-                )
-              VALUES (
-                  ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
-              ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
-              [
-                job.data.membershipType,
-                job.data.membershipId,
-                PreparedValues.displayName,
-                date, //
-                PreparedValues.lastPlayed,
-                PreparedValues.triumphScore,
-                PreparedValues.legacyScore,
-                PreparedValues.activeScore,
-                collections.length,
-                // update...
-                PreparedValues.displayName,
-                date, //
-                PreparedValues.lastPlayed,
-                PreparedValues.triumphScore,
-                PreparedValues.legacyScore,
-                PreparedValues.activeScore,
-                collections.length,
-              ]
-            )
-          );
-        }
-      } else if (response.ErrorCode === 0) {
-        throw new Error(`${job.data.membershipId} (${job.id}): HTTP failure`);
-      } else {
-        throw new Error(`${job.data.membershipId} (${job.id}): Bungie error ${response.ErrorCode}`);
-      }
-    } else {
-      console.log('fuck');
-    }
+    processResponse(job, response)
 
     // const jobEnd = performance.now();
 
@@ -302,6 +132,161 @@ async function processJob(job) {
     return true;
   } catch (error) {
     throw new Error(error.message);
+  }
+}
+
+function processResponse(job, response) {
+  if (response && response.ErrorCode !== undefined) {
+    if (response.ErrorCode === 1) {
+      if (response.Response.profileRecords.data === undefined || Object.keys(response.Response.characterCollectibles.data).length === 0) {
+        let displayName = '';
+
+        try {
+          displayName = response.Response.profile.data.userInfo.displayName;
+        } catch (e) {}
+
+        query(mysql.format(`UPDATE members SET isPrivate = '1' WHERE membershipId = ?`, [job.data.membershipId]));
+
+        job.retries(0);
+
+        throw new Error(`${job.data.membershipId} (${job.id}): ${displayName}'s profile is private`);
+      }
+
+      const triumphs = [];
+      const collections = [];
+
+      // triumphs (profile scope)
+      for (const hash in response.Response.profileRecords.data.records) {
+        const record = response.Response.profileRecords.data.records[hash];
+
+        if (record.intervalObjectives && record.intervalObjectives.length) {
+          if (record.intervalObjectives.some((objective) => objective.complete) && record.intervalObjectives.filter((objective) => objective.complete).length === record.intervalObjectives.length) {
+            triumphs.push(hash);
+          }
+        } else {
+          if (!!(record.state & 1) || !!!(record.state & 4)) {
+            triumphs.push(hash);
+          }
+        }
+      }
+
+      // triumphs (character scope)
+      for (const characterId in response.Response.characterRecords.data) {
+        for (const hash in response.Response.characterRecords.data[characterId].records) {
+          const record = response.Response.characterRecords.data[characterId].records[hash];
+
+          if (triumphs.indexOf(hash) === -1) {
+            if (record.intervalObjectives && record.intervalObjectives.length) {
+              if (record.intervalObjectives.some((objective) => objective.complete) && record.intervalObjectives.filter((objective) => objective.complete).length === record.intervalObjectives.length) {
+                triumphs.push(hash);
+              }
+            } else {
+              if (!!(record.state & 1) || !!!(record.state & 4)) {
+                triumphs.push(hash);
+              }
+            }
+          }
+        }
+      }
+
+      // collections (profile scope)
+      for (const hash in response.Response.profileCollectibles.data.collectibles) {
+        if (!!!(response.Response.profileCollectibles.data.collectibles[hash].state & 1)) {
+          collections.push(hash);
+        }
+      }
+
+      // collections (character scope)
+      for (const characterId in response.Response.characterCollectibles.data) {
+        for (const hash in response.Response.characterCollectibles.data[characterId].collectibles) {
+          if (!!!(response.Response.characterCollectibles.data[characterId].collectibles[hash].state & 1)) {
+            if (collections.indexOf(hash) === -1) {
+              collections.push(hash);
+            }
+          }
+        }
+      }
+
+      // for spying 🥸
+      if (collections.indexOf('3316003520') > -1) {
+        StatsParallelProgram.push({
+          membershipType: job.data.membershipType,
+          membershipId: job.data.membershipId,
+        });
+      }
+
+      for (let index = 0; index < triumphs.length; index++) {
+        const hash = triumphs[index];
+
+        if (StatsTriumphs[hash]) {
+          StatsTriumphs[hash]++;
+        } else {
+          StatsTriumphs[hash] = 1;
+        }
+      }
+
+      for (let index = 0; index < collections.length; index++) {
+        const hash = collections[index];
+
+        if (StatsTriumphs[hash]) {
+          StatsCollections[hash]++;
+        } else {
+          StatsCollections[hash] = 1;
+        }
+      }
+
+      // values specifically for storing in the database for things like leaderboards
+      const PreparedValues = values(response);
+
+      const date = new Date();
+
+      if (process.env.STORE_JOB_RESULTS === 'true') {
+        query(
+          mysql.format(
+            `INSERT INTO voluspa.profiles (
+                membershipType,
+                membershipId,
+                displayName,
+                lastUpdated,
+                lastPlayed,
+                triumphScore,
+                legacyScore,
+                activeScore,
+                collectionsTotal
+              )
+            VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
+              )
+            ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
+            [
+              job.data.membershipType,
+              job.data.membershipId,
+              PreparedValues.displayName,
+              date, //
+              PreparedValues.lastPlayed,
+              PreparedValues.triumphScore,
+              PreparedValues.legacyScore,
+              PreparedValues.activeScore,
+              collections.length,
+              // update...
+              PreparedValues.displayName,
+              date, //
+              PreparedValues.lastPlayed,
+              PreparedValues.triumphScore,
+              PreparedValues.legacyScore,
+              PreparedValues.activeScore,
+              collections.length,
+            ]
+          )
+        );
+      }
+    } else if (response.ErrorCode === 0) {
+      throw new Error(`${job.data.membershipId} (${job.id}): HTTP failure`);
+    } else {
+      throw new Error(`${job.data.membershipId} (${job.id}): Bungie error ${response.ErrorCode}`);
+    }
+  } else {
+    console.log('fuck');
   }
 }
 
