@@ -227,7 +227,7 @@ function processResponse(job, response) {
       for (let index = 0; index < collections.length; index++) {
         const hash = collections[index];
 
-        if (StatsTriumphs[hash]) {
+        if (StatsCollections[hash]) {
           StatsCollections[hash]++;
         } else {
           StatsCollections[hash] = 1;
