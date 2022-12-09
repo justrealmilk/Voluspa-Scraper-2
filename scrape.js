@@ -102,14 +102,14 @@ async function processJob(job) {
     /**
      * 1. when only fetch runs, requests complete in ~15 seconds
      * 
-     *    
+     *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch.png
      */
 
     const fetchStart = performance.now();
     const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
     const fetchEnd = performance.now();
 
-    // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
+    // if return here, f a s t fetches
     return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
 
     /**
@@ -121,13 +121,14 @@ async function processJob(job) {
      * 
      *    current theory: accessing the response causes it to persist and shit
      * 
-     *    
+     *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch+process.png
      */
 
     const jobStart = performance.now();
     await processResponse(job, response)
     const jobEnd = performance.now();
 
+    // if return here, slow fetches???
     return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
 
     return true;
