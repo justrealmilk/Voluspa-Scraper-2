@@ -12,7 +12,7 @@ import { values } from './dataUtils.js';
 
 console.log(chalk.hex('#e3315b')('VOLUSPA'));
 
-const concurrencyLimit = 500;
+const concurrencyLimit = 200;
 
 // connect queue
 const bungieQueue = new Queue('bungie', {
@@ -79,7 +79,7 @@ bungieQueue.on('job succeeded', (id, result) => {
   jobProgress++;
   jobSuccessful++;
 
-  // console.log(result);
+  console.log(result);
 });
 
 bungieQueue.on('job retrying', (id, error) => {
@@ -101,14 +101,16 @@ async function processJob(job) {
   try {
     /**
      * 1. when only fetch runs, requests complete in ~15 seconds
+     * 
+     *    
      */
 
-    // const fetchStart = performance.now();
+    const fetchStart = performance.now();
     const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
-    // const fetchEnd = performance.now();
+    const fetchEnd = performance.now();
 
     // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
-    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
+    return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
 
     /**
      * 2. when the response returned by the fetch function is accessed by the below code,
@@ -118,13 +120,15 @@ async function processJob(job) {
      *    the first 30 runs complete in a reasonable time, but quickly balloon out.
      * 
      *    current theory: accessing the response causes it to persist and shit
+     * 
+     *    
      */
 
-    // const jobStart = performance.now();
-    processResponse(job, response)
-    // const jobEnd = performance.now();
+    const jobStart = performance.now();
+    await processResponse(job, response)
+    const jobEnd = performance.now();
 
-    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
+    return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
 
     return true;
   } catch (error) {
