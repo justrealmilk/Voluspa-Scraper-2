@@ -1,9 +1,10 @@
 {
   "name": "voluspa-scraper",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "start": "node --experimental-repl-await scrape.mjs"
+    "start": "node --experimental-repl-await scrape.js"
   },
   "dependencies": {
     "bee-queue": "^1.5.0",
@@ -12,6 +13,6 @@
     "esm": "^3.2.25",
     "got": "^12.5.3",
     "load-balancers": "^1.3.52",
-    "mysql": "^2.18.1"
+    "mysql2": "^2.3.3"
   }
 }

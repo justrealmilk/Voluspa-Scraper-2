@@ -1,14 +1,14 @@
 import fs from 'fs';
 import util from 'util';
-import mysql from 'mysql';
+import mysql from 'mysql2';
 import Queue from 'bee-queue';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 
 dotenv.config();
 
-import { fetch } from './requestUtils.mjs';
-import { values } from './dataUtils.mjs';
+import { fetch } from './requestUtils.js';
+import { values } from './dataUtils.js';
 
 console.log(chalk.hex('#e3315b')('VOLUSPA'));
 
@@ -25,10 +25,11 @@ await bungieQueue.destroy();
 // setup basic db stuff
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
+  port: process.env.MYSQL_PORT,
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
-  connectionLimit: 100,
+  connectionLimit: 50,
   supportBigNumbers: true,
   multipleStatements: true,
   charset: 'utf8mb4',
@@ -107,7 +108,6 @@ async function processJob(job) {
     // const fetchEnd = performance.now();
 
     // await fs.promises.writeFile(`./cache/${job.data.membershipId}.json`, JSON.stringify(response))
-
     // return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
 
     /**
@@ -121,9 +121,7 @@ async function processJob(job) {
      */
 
     // const jobStart = performance.now();
-
     processResponse(job, response)
-
     // const jobEnd = performance.now();
 
     // return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
