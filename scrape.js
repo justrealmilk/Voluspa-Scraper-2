@@ -12,7 +12,7 @@ import { values } from './dataUtils.js';
 
 console.log(chalk.hex('#e3315b')('VOLUSPA'));
 
-const concurrencyLimit = 200;
+const concurrencyLimit = 400;
 
 // connect queue
 const bungieQueue = new Queue('bungie', {
@@ -47,16 +47,14 @@ for (let i = 0; i < members.length + 100000; i += 100000) {
 
   await bungieQueue
     .saveAll(
-      members
-        .slice(i, i + 100000)
-        .map((member) =>
-          bungieQueue
-            .createJob({
-              membershipType: member.membershipType,
-              membershipId: member.membershipId,
-            })
-            .retries(3)
-        )
+      members.slice(i, i + 100000).map((member) =>
+        bungieQueue
+          .createJob({
+            membershipType: member.membershipType,
+            membershipId: member.membershipId,
+          })
+          .retries(3)
+      )
     )
     .then((errors) => {
       if (errors.size > 0) {
@@ -79,7 +77,7 @@ bungieQueue.on('job succeeded', (id, result) => {
   jobProgress++;
   jobSuccessful++;
 
-  console.log(result);
+  // console.log(result);
 });
 
 bungieQueue.on('job retrying', (id, error) => {
@@ -101,35 +99,35 @@ async function processJob(job) {
   try {
     /**
      * 1. when only fetch runs, requests complete in ~15 seconds
-     * 
+     *
      *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch.png
      */
 
-    const fetchStart = performance.now();
+    // const fetchStart = performance.now();
     const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
-    const fetchEnd = performance.now();
+    // const fetchEnd = performance.now();
 
     // if return here, f a s t fetches
-    return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
+    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
 
     /**
      * 2. when the response returned by the fetch function is accessed by the below code,
      *    code which completes consistently in less than 15ms,
      *    the fetch function instead takes ~45 seconds to complete.
-     * 
+     *
      *    the first 30 runs complete in a reasonable time, but quickly balloon out.
-     * 
+     *
      *    current theory: accessing the response causes it to persist and shit
-     * 
+     *
      *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch+process.png
      */
 
-    const jobStart = performance.now();
-    await processResponse(job, response)
-    const jobEnd = performance.now();
+    // const jobStart = performance.now();
+    await processResponse(job, response);
+    // const jobEnd = performance.now();
 
     // if return here, slow fetches???
-    return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
+    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
 
     return true;
   } catch (error) {
@@ -314,22 +312,11 @@ async function updateLog() {
     console.log('Saved Parallel Program stats to disk');
 
     if (process.env.STORE_JOB_RESULTS === 'true') {
-      await query(mysql.format(`INSERT INTO voluspa.scrapes_status (scrape, duration, members) VALUES (?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobSuccessful]));
-
-      const ranks = await query(`SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-    INSERT INTO voluspa.ranks (
-        membershipType,
-        membershipId,
-        triumphScore,
-        legacyScore,
-        activeScore,
-        collectionsTotal,
-        triumphRank,
-        legacyRank,
-        activeRank,
-        collectionsRank
-      ) (
-        SELECT membershipType,
+      const scrapesStatusQuery = mysql.format(`INSERT INTO voluspa.scrapes_status (scrape, duration, members) VALUES (?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobSuccessful]);
+      const configQuery = mysql.format(`UPDATE voluspa.config SET lastScrapeStart = ?, lastScrapeDuration = ?, lastRanked = ?, membersAggregate = ?, membersScrape = ? WHERE config.id = 1`, [scrapeStart, Math.ceil(Date.now() - scrapeStart.getTime()), new Date(), jobCompletionValue, jobSuccessful]);
+      const rankQuery = `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+      INSERT INTO voluspa.ranks (
+          membershipType,
           membershipId,
           triumphScore,
           legacyScore,
@@ -339,38 +326,55 @@ async function updateLog() {
           legacyRank,
           activeRank,
           collectionsRank
-        FROM (
-            SELECT *,
-              DENSE_RANK() OVER (
-                ORDER BY triumphScore DESC
-              ) triumphRank,
-              DENSE_RANK() OVER (
-                ORDER BY legacyScore DESC
-              ) legacyRank,
-              DENSE_RANK() OVER (
-                ORDER BY activeScore DESC
-              ) activeRank,
-              DENSE_RANK() OVER (
-                ORDER BY collectionsTotal DESC
-              ) collectionsRank
-            FROM voluspa.profiles
-            WHERE lastPlayed > '2022-02-22 17:00:00' 
-            ORDER BY displayName ASC
-          ) R
-      ) ON DUPLICATE KEY
-    UPDATE triumphScore = R.triumphScore,
-      legacyScore = R.legacyScore,
-      activeScore = R.activeScore,
-      collectionsTotal = R.collectionsTotal,
-      triumphRank = R.triumphRank,
-      legacyRank = R.legacyRank,
-      activeRank = R.activeRank,
-      collectionsRank = R.collectionsRank;
-    COMMIT;`);
+        ) (
+          SELECT membershipType,
+            membershipId,
+            triumphScore,
+            legacyScore,
+            activeScore,
+            collectionsTotal,
+            triumphRank,
+            legacyRank,
+            activeRank,
+            collectionsRank
+          FROM (
+              SELECT *,
+                DENSE_RANK() OVER (
+                  ORDER BY triumphScore DESC
+                ) triumphRank,
+                DENSE_RANK() OVER (
+                  ORDER BY legacyScore DESC
+                ) legacyRank,
+                DENSE_RANK() OVER (
+                  ORDER BY activeScore DESC
+                ) activeRank,
+                DENSE_RANK() OVER (
+                  ORDER BY collectionsTotal DESC
+                ) collectionsRank
+              FROM voluspa.profiles
+              WHERE lastPlayed > '2022-02-22 17:00:00' 
+              ORDER BY displayName ASC
+            ) R
+        ) ON DUPLICATE KEY
+      UPDATE triumphScore = R.triumphScore,
+        legacyScore = R.legacyScore,
+        activeScore = R.activeScore,
+        collectionsTotal = R.collectionsTotal,
+        triumphRank = R.triumphRank,
+        legacyRank = R.legacyRank,
+        activeRank = R.activeRank,
+        collectionsRank = R.collectionsRank;
+      COMMIT;`;
 
+      console.log(scrapesStatusQuery);
+      console.log(configQuery);
+      console.log(rankQuery);
+      await fs.promises.writeFile(`./temp/queries.temp.${Date.now()}.txt`, `${scrapesStatusQuery}\n\nconfigQuery\n\nrankQuery`);
+
+      await query(scrapesStatusQuery);
+      const ranks = await query(rankQuery);
       console.log(ranks);
-
-      await query(mysql.format(`UPDATE voluspa.config SET lastScrapeStart = ?, lastScrapeDuration = ?, lastRanked = ?, membersAggregate = ?, membersScrape = ? WHERE config.id = 1`, [scrapeStart, Math.ceil(Date.now() - scrapeStart.getTime()), new Date(), jobCompletionValue, jobSuccessful]));
+      await query(configQuery);
 
       await fetch('https://b.vlsp.network/Generate');
 
