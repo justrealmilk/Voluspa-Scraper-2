@@ -39,7 +39,7 @@ const pool = mysql.createPool({
 const query = util.promisify(pool.query).bind(pool);
 
 // get a list of members to fetch profile data for
-const members = await query('SELECT id, membershipType, membershipId FROM members WHERE NOT isPrivate');
+const members = await query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate');
 
 // bee-queue jobs
 for (let i = 0; i < members.length + 100000; i += 100000) {
@@ -145,7 +145,7 @@ function processResponse(job, response) {
           displayName = response.Response.profile.data.userInfo.displayName;
         } catch (e) {}
 
-        query(mysql.format(`UPDATE members SET isPrivate = '1' WHERE membershipId = ?`, [job.data.membershipId]));
+        query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [job.data.membershipId]));
 
         job.retries(0);
 
@@ -243,7 +243,7 @@ function processResponse(job, response) {
       if (process.env.STORE_JOB_RESULTS === 'true') {
         query(
           mysql.format(
-            `INSERT INTO voluspa.profiles (
+            `INSERT INTO profiles.members (
                 membershipType,
                 membershipId,
                 displayName,
@@ -312,10 +312,9 @@ async function updateLog() {
     console.log('Saved Parallel Program stats to disk');
 
     if (process.env.STORE_JOB_RESULTS === 'true') {
-      const scrapesStatusQuery = mysql.format(`INSERT INTO voluspa.scrapes_status (scrape, duration, members) VALUES (?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobSuccessful]);
-      const configQuery = mysql.format(`UPDATE voluspa.config SET lastScrapeStart = ?, lastScrapeDuration = ?, lastRanked = ?, membersAggregate = ?, membersScrape = ? WHERE config.id = 1`, [scrapeStart, Math.ceil(Date.now() - scrapeStart.getTime()), new Date(), jobCompletionValue, jobSuccessful]);
+      const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
       const rankQuery = `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-      INSERT INTO voluspa.ranks (
+      INSERT INTO leaderboards.ranks (
           membershipType,
           membershipId,
           triumphScore,
@@ -351,7 +350,7 @@ async function updateLog() {
                 DENSE_RANK() OVER (
                   ORDER BY collectionsTotal DESC
                 ) collectionsRank
-              FROM voluspa.profiles
+              FROM profiles.members
               WHERE lastPlayed > '2022-02-22 17:00:00' 
               ORDER BY displayName ASC
             ) R
@@ -366,23 +365,24 @@ async function updateLog() {
         collectionsRank = R.collectionsRank;
       COMMIT;`;
 
-      console.log(scrapesStatusQuery);
-      console.log(configQuery);
-      console.log(rankQuery);
-      await fs.promises.writeFile(`./temp/queries.temp.${Date.now()}.txt`, `${scrapesStatusQuery}\n\nconfigQuery\n\nrankQuery`);
+      const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])])
+      const statsCollectiblesQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?`, [Object.entries(StatsCollections).map(([hash, value]) => [scrapeStart, hash, value])])
+      
+      await fs.promises.writeFile(`./temp/queries.temp.${Date.now()}.txt`, `${scrapesStatusQuery}\n\n${configQuery}\n\n${rankQuery}`);
+      await fs.promises.writeFile(`./temp/queries.extended.temp.${Date.now()}.txt`, `${statsTriumphsQuery}\n\n${statsCollectiblesQuery}`);
 
-      await query(scrapesStatusQuery);
+      const status = await query(scrapesStatusQuery);
       const ranks = await query(rankQuery);
       console.log(ranks);
-      await query(configQuery);
 
-      await fetch('https://b.vlsp.network/Generate');
-
-      await query(mysql.format(`INSERT INTO voluspa.statistics (scrape, hash, commonality) VALUES ?`, [Object.entries(StatsTriumphs).map(([hash, commonality]) => [scrapeStart, hash, commonality])]));
+      await query(statsTriumphsQuery);
       console.log('Saved Triumphs stats to database');
 
-      await query(mysql.format(`INSERT INTO voluspa.statistics (scrape, hash, commonality) VALUES ?`, [Object.entries(StatsCollections).map(([hash, commonality]) => [scrapeStart, hash, commonality])]));
+      await query(statsCollectiblesQuery);
       console.log('Saved Collections stats to database');
+
+      await fetch(`https://b.vlsp.network/Generate/Commonality?id=${status.insertId}`);
+      await fetch('https://b.vlsp.network/Generate');
     }
 
     process.exit();
