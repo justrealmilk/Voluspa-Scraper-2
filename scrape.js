@@ -1,67 +1,38 @@
 import fs from 'fs';
-import util from 'util';
 import mysql from 'mysql2';
-import Queue from 'bee-queue';
+import pLimit from 'p-limit';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 
-dotenv.config();
-
-import { fetch } from './requestUtils.js';
+import { customFetch } from './requestUtils.js';
 import { values } from './dataUtils.js';
+
+dotenv.config();
 
 console.log(chalk.hex('#e3315b')('VOLUSPA'));
 
-const concurrencyLimit = 400;
-
-// connect queue
-const bungieQueue = new Queue('bungie', {
-  // storeJobs: false,
-});
-
-// make sure there's no jobs left over from earlier
-await bungieQueue.destroy();
+const limit = pLimit(200);
 
 // setup basic db stuff
-const pool = mysql.createPool({
+const puddle = mysql.createPool({
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
-  connectionLimit: 50,
+  connectionLimit: 20,
   supportBigNumbers: true,
   multipleStatements: true,
   charset: 'utf8mb4',
 });
 
 // make db query async
-const query = util.promisify(pool.query).bind(pool);
+const pool = puddle.promise();
 
 // get a list of members to fetch profile data for
-const members = await query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate');
-
-// bee-queue jobs
-for (let i = 0; i < members.length + 100000; i += 100000) {
-  console.log('Adding to queue: %s', i);
-
-  await bungieQueue
-    .saveAll(
-      members.slice(i, i + 100000).map((member) =>
-        bungieQueue
-          .createJob({
-            membershipType: member.membershipType,
-            membershipId: member.membershipId,
-          })
-          .retries(3)
-      )
-    )
-    .then((errors) => {
-      if (errors.size > 0) {
-        console.log(errors);
-      }
-    });
-}
+console.log('Querying braytech.members');
+const [members] = await pool.query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate ORDER BY last DESC LIMIT 0, 1000000');
+console.log('Results received');
 
 // empty objects to hold statistics for later
 const StatsTriumphs = {};
@@ -73,65 +44,44 @@ let jobCompletionValue = members.length;
 let jobProgress = 0;
 let jobSuccessful = 0;
 
-bungieQueue.on('job succeeded', (id, result) => {
-  jobProgress++;
-  jobSuccessful++;
-
-  // console.log(result);
-});
-
-bungieQueue.on('job retrying', (id, error) => {
-  console.log(error.message.indexOf('Bungie error') > -1 || error.message.indexOf('HTTP failure') > -1 ? chalk.hex('#f44336')(`${error.message} (will retry)`) : chalk.dim(`${error.message} (will retry)`));
-});
-
-bungieQueue.on('job failed', (id, error) => {
-  console.log(error.message.indexOf('Bungie error') > -1 || error.message.indexOf('HTTP failure') > -1 ? chalk.hex('#f44336')(error.message) : chalk.dim(error.message));
-
-  jobProgress++;
-});
+const jobs = members.map((member) => limit(() => processJob(member)));
 
 const scrapeStart = new Date();
 
-// ignition
-bungieQueue.process(concurrencyLimit, processJob);
-
 async function processJob(job) {
   try {
-    /**
-     * 1. when only fetch runs, requests complete in ~15 seconds
-     *
-     *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch.png
-     */
+    const processStart = new Date().toISOString();
 
-    // const fetchStart = performance.now();
-    const response = await fetch(`https://www.bungie.net/Platform/Destiny2/${job.data.membershipType}/Profile/${job.data.membershipId}/?components=100,800,900`);
-    // const fetchEnd = performance.now();
+    const fetchStart = performance.now();
+    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${job.membershipType}/Profile/${job.membershipId}/?components=100,800,900`);
+    const fetchEnd = performance.now();
 
-    // if return here, f a s t fetches
-    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms`;
+    const computeStart = performance.now();
+    const result = await processResponse(job, response);
+    const computeEnd = performance.now();
 
-    /**
-     * 2. when the response returned by the fetch function is accessed by the below code,
-     *    code which completes consistently in less than 15ms,
-     *    the fetch function instead takes ~45 seconds to complete.
-     *
-     *    the first 30 runs complete in a reasonable time, but quickly balloon out.
-     *
-     *    current theory: accessing the response causes it to persist and shit
-     *
-     *    https://github.com/justrealmilk/Voluspa-Scraper-2/blob/main/fetch+process.png
-     */
+    jobProgress++;
+    jobSuccessful++;
 
-    // const jobStart = performance.now();
-    await processResponse(job, response);
-    // const jobEnd = performance.now();
-
-    // if return here, slow fetches???
-    // return `${job.id}: fetch ${fetchEnd - fetchStart}ms, process ${jobEnd - jobStart}ms`;
-
-    return true;
+    return {
+      error: result,
+      membership: {
+        membershipType: job.membershipType,
+        membershipId: job.membershipId,
+      },
+      performance: {
+        start: processStart,
+        fetch: fetchEnd - fetchStart,
+        compute: computeEnd - computeStart,
+      },
+    };
   } catch (error) {
-    throw new Error(error.message);
+    jobProgress++;
+
+    return {
+      error: error.message,
+      performance: undefined,
+    };
   }
 }
 
@@ -139,17 +89,15 @@ function processResponse(job, response) {
   if (response && response.ErrorCode !== undefined) {
     if (response.ErrorCode === 1) {
       if (response.Response.profileRecords.data === undefined || Object.keys(response.Response.characterCollectibles.data).length === 0) {
-        let displayName = '';
-
         try {
           displayName = response.Response.profile.data.userInfo.displayName;
         } catch (e) {}
 
-        query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [job.data.membershipId]));
+        if (process.env.STORE_JOB_RESULTS === 'true') {
+          pool.query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [job.membershipId]));
+        }
 
-        job.retries(0);
-
-        throw new Error(`${job.data.membershipId} (${job.id}): ${displayName}'s profile is private`);
+        return 'PRIVATE_PROFILE';
       }
 
       const triumphs = [];
@@ -208,10 +156,10 @@ function processResponse(job, response) {
       }
 
       // for spying 🥸
-      if (collections.indexOf('3316003520') > -1) {
+      if (collections.includes('3316003520')) {
         StatsParallelProgram.push({
-          membershipType: job.data.membershipType,
-          membershipId: job.data.membershipId,
+          membershipType: job.membershipType,
+          membershipId: job.membershipId,
         });
       }
 
@@ -241,7 +189,7 @@ function processResponse(job, response) {
       const date = new Date();
 
       if (process.env.STORE_JOB_RESULTS === 'true') {
-        query(
+        pool.query(
           mysql.format(
             `INSERT INTO profiles.members (
                 membershipType,
@@ -259,8 +207,8 @@ function processResponse(job, response) {
               )
             ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
             [
-              job.data.membershipType,
-              job.data.membershipId,
+              job.membershipType,
+              job.membershipId,
               PreparedValues.displayName,
               date, //
               PreparedValues.lastPlayed,
@@ -280,14 +228,14 @@ function processResponse(job, response) {
           )
         );
       }
-    } else if (response.ErrorCode === 0) {
-      throw new Error(`${job.data.membershipId} (${job.id}): HTTP failure`);
-    } else {
-      throw new Error(`${job.data.membershipId} (${job.id}): Bungie error ${response.ErrorCode}`);
+
+      return 'SUCCESS';
+    } else if (response.ErrorCode !== undefined) {
+      return 'BUNGIE_ERROR';
     }
-  } else {
-    console.log('fuck');
   }
+
+  return 'UNKNOWN_ERROR';
 }
 
 // just in case
@@ -312,7 +260,7 @@ async function updateLog() {
     console.log('Saved Parallel Program stats to disk');
 
     if (process.env.STORE_JOB_RESULTS === 'true') {
-      const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?)`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
+      const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
       const rankQuery = `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
       INSERT INTO leaderboards.ranks (
           membershipType,
@@ -365,24 +313,33 @@ async function updateLog() {
         collectionsRank = R.collectionsRank;
       COMMIT;`;
 
-      const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])])
-      const statsCollectiblesQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?`, [Object.entries(StatsCollections).map(([hash, value]) => [scrapeStart, hash, value])])
-      
-      await fs.promises.writeFile(`./temp/queries.temp.${Date.now()}.txt`, `${scrapesStatusQuery}\n\n${configQuery}\n\n${rankQuery}`);
-      await fs.promises.writeFile(`./temp/queries.extended.temp.${Date.now()}.txt`, `${statsTriumphsQuery}\n\n${statsCollectiblesQuery}`);
+      const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])]);
+      const statsCollectiblesQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsCollections).map(([hash, value]) => [scrapeStart, hash, value])]);
 
-      const status = await query(scrapesStatusQuery);
-      const ranks = await query(rankQuery);
+      await fs.promises.writeFile(`./temp/queries.${Date.now()}.sql`, `${scrapesStatusQuery}\n\n${rankQuery}`);
+      await fs.promises.writeFile(`./temp/queries.extended.${Date.now()}.sql`, `${statsTriumphsQuery}\n\n${statsCollectiblesQuery}`);
+
+      const [status] = await pool.query(scrapesStatusQuery);
+
+      const [ranks] = await pool.query(rankQuery);
       console.log(ranks);
 
-      await query(statsTriumphsQuery);
+      await pool.query(statsTriumphsQuery);
       console.log('Saved Triumphs stats to database');
 
-      await query(statsCollectiblesQuery);
+      await pool.query(statsCollectiblesQuery);
       console.log('Saved Collections stats to database');
 
-      await fetch(`https://b.vlsp.network/Generate/Commonality?id=${status.insertId}`);
-      await fetch('https://b.vlsp.network/Generate');
+      await fetch(`http://0.0.0.0:8080/Generate/Commonality?id=${status.insertId}`, {
+        headers: {
+          'x-api-key': 'insomnia',
+        },
+      });
+      await fetch('http://0.0.0.0:8080/Generate', {
+        headers: {
+          'x-api-key': 'insomnia',
+        },
+      });
     }
 
     process.exit();
@@ -394,7 +351,23 @@ async function updateLog() {
     ]);
   }
 
-  console.log(`${jobProgress}/${jobCompletionValue} // ${((jobProgress / jobCompletionValue) * 100).toFixed(3)}% // ${Math.ceil((Date.now() - scrapeStart.getTime()) / 60000)}m elapsed, ~${Math.floor((((Date.now() - scrapeStart.getTime()) / jobProgress) * (jobCompletionValue - jobProgress)) / 60000)}m remaining // Parallel Programs: ${StatsParallelProgram.length}`);
+  console.table({
+    Progress: Math.floor((jobProgress / jobCompletionValue) * 100),
+    JobProgress: jobProgress,
+    JobCompletionValue: jobCompletionValue,
+    QueueActive: limit.activeCount,
+    QueuePending: limit.pendingCount,
+    TimeElapsed: Math.ceil((Date.now() - scrapeStart.getTime()) / 60000),
+    TimeRemaining: Math.floor((((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)) / 60000),
+    TimeComplete: new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)).toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' }),
+    ParallelPrograms: StatsParallelProgram.length,
+  });
 }
 
 const updateIntervalTimer = setInterval(updateLog, 10000);
+
+const jobResults = await Promise.all(jobs);
+
+await fs.promises.copyFile('./temp/job-results.json', './temp/job-results.previous.json');
+await fs.promises.writeFile('./temp/job-results.json', JSON.stringify(jobResults));
+console.log('Saved job results to disk');

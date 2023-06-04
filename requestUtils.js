@@ -45,7 +45,7 @@ function createInstance(localAddress) {
   });
 }
 
-export async function fetch(url) {
+export async function customFetch(url) {
   const instance = instances[balancer.pick()];
 
   return instance.get(url, {
