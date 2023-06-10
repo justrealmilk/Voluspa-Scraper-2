@@ -2,16 +2,29 @@ import fs from 'fs';
 import mysql from 'mysql2';
 import pLimit from 'p-limit';
 import dotenv from 'dotenv';
-import chalk from 'chalk';
+import http from 'http';
 
 import { customFetch } from './requestUtils.js';
 import { values } from './dataUtils.js';
 
 dotenv.config();
 
-console.log(chalk.hex('#e3315b')('VOLUSPA'));
+console.log('VOLUSPA');
 
-const limit = pLimit(200);
+let metrics = '';
+
+const requestListener = function (request, response) {
+  response.writeHead(200);
+  response.end(metrics);
+};
+
+const server = http.createServer(requestListener);
+
+server.listen(8181, '0.0.0.0', () => {
+  console.log(`HTTP server started`);
+});
+
+const limit = pLimit(150);
 
 // setup basic db stuff
 const puddle = mysql.createPool({
@@ -20,7 +33,8 @@ const puddle = mysql.createPool({
   user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
-  connectionLimit: 20,
+  connectionLimit: 10,
+  acquireTimeout: 60000,
   supportBigNumbers: true,
   multipleStatements: true,
   charset: 'utf8mb4',
@@ -44,6 +58,9 @@ let jobCompletionValue = members.length;
 let jobProgress = 0;
 let jobSuccessful = 0;
 
+let jobRate = 0;
+let jobErrors = {};
+
 const jobs = members.map((member) => limit(() => processJob(member)));
 
 const scrapeStart = new Date();
@@ -63,6 +80,12 @@ async function processJob(job) {
     jobProgress++;
     jobSuccessful++;
 
+    jobRate++;
+
+    if (result !== 'success') {
+      jobErrors[result] = (jobErrors[result] ?? 1) + 1;
+    }
+
     return {
       error: result,
       membership: {
@@ -76,10 +99,13 @@ async function processJob(job) {
       },
     };
   } catch (error) {
+    jobRate++;
     jobProgress++;
 
+    fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${error}`);
+
     return {
-      error: error.message,
+      error,
       performance: undefined,
     };
   }
@@ -97,7 +123,7 @@ function processResponse(job, response) {
           pool.query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [job.membershipId]));
         }
 
-        return 'PRIVATE_PROFILE';
+        return 'private_profile';
       }
 
       const triumphs = [];
@@ -229,13 +255,21 @@ function processResponse(job, response) {
         );
       }
 
-      return 'SUCCESS';
+      return 'success';
     } else if (response.ErrorCode !== undefined) {
-      return 'BUNGIE_ERROR';
+      if (response.ErrorCode === 1601) {
+        if (process.env.STORE_JOB_RESULTS === 'true') {
+          pool.query(mysql.format(`DELETE FROM braytech.members WHERE membershipId = ?`, [job.membershipId]));
+        }
+      }
+
+      return `bungie_${response.ErrorStatus}`;
     }
   }
 
-  return 'UNKNOWN_ERROR';
+  fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${response}`);
+
+  return 'unknown_error';
 }
 
 // just in case
@@ -243,9 +277,16 @@ let finalising = false;
 
 // relaying updates to the console/saving final statistics
 async function updateLog() {
+  const progress = Math.floor((jobProgress / jobCompletionValue) * 100);
+  const timeElapsed = Math.ceil((Date.now() - scrapeStart.getTime()) / 60000);
+  const timeRemaining = Math.floor((((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)) / 60000);
+  const timeComplete = new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)).toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' });
+
   if (jobProgress === jobCompletionValue && finalising === false) {
     finalising = true;
     clearInterval(updateIntervalTimer);
+
+    metrics = '';
 
     await fs.promises.copyFile('./temp/triumphs.json', './temp/triumphs.previous.json');
     await fs.promises.writeFile('./temp/triumphs.json', JSON.stringify(StatsTriumphs));
@@ -344,6 +385,15 @@ async function updateLog() {
 
     process.exit();
   } else {
+    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${limit.activeCount}\n\nvoluspa_scraper_queue_pending ${limit.pendingCount}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_complete ${timeComplete}\n\n${Object.keys(jobErrors)
+      .map((key) => `voluspa_scraper_job_error_${key} ${jobErrors[key]}`)
+      .join('\n\n')}`;
+
+    jobRate = 0;
+    Object.keys(jobErrors).forEach((key) => {
+      jobErrors[key] = 0;
+    });
+
     await Promise.all([
       fs.promises.writeFile('./temp/triumphs.temp.json', JSON.stringify(StatsTriumphs)), //
       fs.promises.writeFile('./temp/collections.temp.json', JSON.stringify(StatsCollections)),
@@ -352,22 +402,22 @@ async function updateLog() {
   }
 
   console.table({
-    Progress: Math.floor((jobProgress / jobCompletionValue) * 100),
+    Progress: progress,
     JobProgress: jobProgress,
     JobCompletionValue: jobCompletionValue,
     QueueActive: limit.activeCount,
     QueuePending: limit.pendingCount,
-    TimeElapsed: Math.ceil((Date.now() - scrapeStart.getTime()) / 60000),
-    TimeRemaining: Math.floor((((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)) / 60000),
-    TimeComplete: new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)).toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' }),
+    TimeElapsed: timeElapsed,
+    TimeRemaining: timeRemaining,
+    TimeComplete: timeComplete,
     ParallelPrograms: StatsParallelProgram.length,
   });
 }
 
-const updateIntervalTimer = setInterval(updateLog, 10000);
+const updateIntervalTimer = setInterval(updateLog, 5000);
 
 const jobResults = await Promise.all(jobs);
 
 await fs.promises.copyFile('./temp/job-results.json', './temp/job-results.previous.json');
-await fs.promises.writeFile('./temp/job-results.json', JSON.stringify(jobResults));
+await fs.promises.writeFile('./temp/job-results.json', JSON.stringify(jobResults.filter((job) => job.error !== 'success')));
 console.log('Saved job results to disk');
