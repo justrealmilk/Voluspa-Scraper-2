@@ -306,7 +306,8 @@ async function updateLog() {
 
     if (process.env.STORE_JOB_RESULTS === 'true') {
       const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
-      const rankQuery = mysql.format(`SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+      const rankQuery = mysql.format(
+        `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
       TRUNCATE leaderboards.ranks;
       INSERT INTO leaderboards.ranks (
           membershipType,
@@ -357,7 +358,9 @@ async function updateLog() {
         legacyRank = R.legacyRank,
         activeRank = R.activeRank,
         collectionsRank = R.collectionsRank;
-      COMMIT;`, [scrapeStart]);
+      COMMIT;`,
+        [scrapeStart]
+      );
 
       const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])]);
       const statsCollectiblesQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsCollections).map(([hash, value]) => [scrapeStart, hash, value])]);
@@ -365,27 +368,37 @@ async function updateLog() {
       await fs.promises.writeFile(`./temp/queries.${Date.now()}.sql`, `${scrapesStatusQuery}\n\n${rankQuery}`);
       await fs.promises.writeFile(`./temp/queries.extended.${Date.now()}.sql`, `${statsTriumphsQuery}\n\n${statsCollectiblesQuery}`);
 
+      console.log('Save scrape to profiles.scrapes...');
       const [status] = await pool.query(scrapesStatusQuery);
+      console.log('Saved scrape profiles.scrapes...');
 
-      const [ranks] = await pool.query(rankQuery);
+      console.log('Evaluate leaderboards...');
+      const ranks = await pool.query(rankQuery);
       console.log(ranks);
+      console.log('Evaluated leaderboards...');
 
+      console.log('Save Triumphs stats to database...');
       await pool.query(statsTriumphsQuery);
-      console.log('Saved Triumphs stats to database');
+      console.log('Saved Triumphs stats to database...');
 
+      console.log('Save Collections stats to database...');
       await pool.query(statsCollectiblesQuery);
-      console.log('Saved Collections stats to database');
+      console.log('Saved Collections stats to database...');
 
+      console.log('Cache commonality...');
       await fetch(`http://0.0.0.0:8080/Generate/Commonality?id=${status.insertId}`, {
         headers: {
           'x-api-key': 'insomnia',
         },
       });
+      console.log('Cached commonality...');
+      console.log('Generate common...');
       await fetch('http://0.0.0.0:8080/Generate', {
         headers: {
           'x-api-key': 'insomnia',
         },
       });
+      console.log('Generated common...');
     }
 
     process.exit();
