@@ -45,7 +45,7 @@ const pool = puddle.promise();
 
 // get a list of members to fetch profile data for
 console.log('Querying braytech.members');
-const [members] = await pool.query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate ORDER BY last DESC LIMIT 0, 1000000');
+const [members] = await pool.query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate LIMIT 0, 1000000');
 console.log('Results received');
 
 // empty objects to hold statistics for later
@@ -102,10 +102,14 @@ async function processJob(job) {
     jobRate++;
     jobProgress++;
 
-    fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${error}`);
+    fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${error.message}`);
 
     return {
       error,
+      membership: {
+        membershipType: job.membershipType,
+        membershipId: job.membershipId,
+      },
       performance: undefined,
     };
   }
@@ -280,7 +284,7 @@ async function updateLog() {
   const progress = Math.floor((jobProgress / jobCompletionValue) * 100);
   const timeElapsed = Math.ceil((Date.now() - scrapeStart.getTime()) / 60000);
   const timeRemaining = Math.floor((((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)) / 60000);
-  const timeComplete = new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)).toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' });
+  const timeComplete = new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress));
 
   if (jobProgress === jobCompletionValue && finalising === false) {
     finalising = true;
@@ -302,7 +306,8 @@ async function updateLog() {
 
     if (process.env.STORE_JOB_RESULTS === 'true') {
       const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
-      const rankQuery = `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+      const rankQuery = mysql.format(`SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+      TRUNCATE leaderboards.ranks;
       INSERT INTO leaderboards.ranks (
           membershipType,
           membershipId,
@@ -340,7 +345,7 @@ async function updateLog() {
                   ORDER BY collectionsTotal DESC
                 ) collectionsRank
               FROM profiles.members
-              WHERE lastPlayed > '2022-02-22 17:00:00' 
+              WHERE lastUpdated = ? AND lastPlayed > '2023-02-28 17:00:00' 
               ORDER BY displayName ASC
             ) R
         ) ON DUPLICATE KEY
@@ -352,7 +357,7 @@ async function updateLog() {
         legacyRank = R.legacyRank,
         activeRank = R.activeRank,
         collectionsRank = R.collectionsRank;
-      COMMIT;`;
+      COMMIT;`, [scrapeStart]);
 
       const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])]);
       const statsCollectiblesQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsCollections).map(([hash, value]) => [scrapeStart, hash, value])]);
@@ -385,7 +390,7 @@ async function updateLog() {
 
     process.exit();
   } else {
-    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${limit.activeCount}\n\nvoluspa_scraper_queue_pending ${limit.pendingCount}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_complete ${timeComplete}\n\n${Object.keys(jobErrors)
+    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${limit.activeCount}\n\nvoluspa_scraper_queue_pending ${limit.pendingCount}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_remaining ${Math.max((timeComplete.getTime() - Date.now()) / 1000, 0)}\n\n${Object.keys(jobErrors)
       .map((key) => `voluspa_scraper_job_error_${key} ${jobErrors[key]}`)
       .join('\n\n')}`;
 
@@ -409,7 +414,7 @@ async function updateLog() {
     QueuePending: limit.pendingCount,
     TimeElapsed: timeElapsed,
     TimeRemaining: timeRemaining,
-    TimeComplete: timeComplete,
+    TimeComplete: timeComplete.toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' }),
     ParallelPrograms: StatsParallelProgram.length,
   });
 }
@@ -418,6 +423,5 @@ const updateIntervalTimer = setInterval(updateLog, 5000);
 
 const jobResults = await Promise.all(jobs);
 
-await fs.promises.copyFile('./temp/job-results.json', './temp/job-results.previous.json');
-await fs.promises.writeFile('./temp/job-results.json', JSON.stringify(jobResults.filter((job) => job.error !== 'success')));
+await fs.promises.writeFile(`./logs/job-results.${Date.now()}.json`, JSON.stringify(jobResults.filter((job) => job.error !== 'success')));
 console.log('Saved job results to disk');
