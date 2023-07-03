@@ -1,7 +1,7 @@
 export function values(response) {
   const membershipType = response.Response.profile.data.userInfo.membershipType;
   const membershipId = response.Response.profile.data.userInfo.membershipId;
-  const displayName = response.Response.profile.data.userInfo.displayName;
+  const displayName = response.Response.profile.data?.userInfo.bungieGlobalDisplayName !== '' ? `${response.Response.profile.data?.userInfo.bungieGlobalDisplayName}#${response.Response.profile.data.userInfo.bungieGlobalDisplayNameCode.toString().padStart(4, '0')}` : response.Response.profile.data?.userInfo.displayName;
 
   let lastPlayed = new Date(response.Response.profile.data.dateLastPlayed);
 

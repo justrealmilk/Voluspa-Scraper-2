@@ -1,6 +1,6 @@
 import fs from 'fs';
 import mysql from 'mysql2';
-import pLimit from 'p-limit';
+import pQueue from 'p-queue';
 import dotenv from 'dotenv';
 import http from 'http';
 
@@ -24,7 +24,7 @@ server.listen(8181, '0.0.0.0', () => {
   console.log(`HTTP server started`);
 });
 
-const limit = pLimit(150);
+const queue = new pQueue({ concurrency: 150 });
 
 // setup basic db stuff
 const puddle = mysql.createPool({
@@ -61,20 +61,22 @@ let jobSuccessful = 0;
 let jobRate = 0;
 let jobErrors = {};
 
-const jobs = members.map((member) => limit(() => processJob(member)));
-
 const scrapeStart = new Date();
 
-async function processJob(job) {
+members.forEach((member) => {
+  queue.add(() => processJob({ member, retries: 0 }));
+});
+
+async function processJob({ member, retries }) {
   try {
     const processStart = new Date().toISOString();
 
     const fetchStart = performance.now();
-    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${job.membershipType}/Profile/${job.membershipId}/?components=100,800,900`);
+    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${member.membershipType}/Profile/${member.membershipId}/?components=100,800,900`);
     const fetchEnd = performance.now();
 
     const computeStart = performance.now();
-    const result = await processResponse(job, response);
+    const result = processResponse(member, response);
     const computeEnd = performance.now();
 
     jobProgress++;
@@ -84,13 +86,17 @@ async function processJob(job) {
 
     if (result !== 'success') {
       jobErrors[result] = (jobErrors[result] ?? 1) + 1;
+
+      if (retries < 3) {
+        queue.add(() => processJob({ member, retries: retries + 1 }));
+      }
     }
 
     return {
       error: result,
-      membership: {
-        membershipType: job.membershipType,
-        membershipId: job.membershipId,
+      member: {
+        membershipType: member.membershipType,
+        membershipId: member.membershipId,
       },
       performance: {
         start: processStart,
@@ -102,29 +108,33 @@ async function processJob(job) {
     jobRate++;
     jobProgress++;
 
-    fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${error.message}`);
+    fs.promises.writeFile(`./logs/error.${member.membershipId}.${Date.now()}.txt`, `${JSON.stringify(member)}\n\n${typeof error}\n\n${error.toString()}\n\n${error.message}`);
+
+    if (retries < 3) {
+      queue.add(() => processJob({ member, retries: retries + 1 }));
+    }
 
     return {
       error,
-      membership: {
-        membershipType: job.membershipType,
-        membershipId: job.membershipId,
+      member: {
+        membershipType: member.membershipType,
+        membershipId: member.membershipId,
       },
       performance: undefined,
     };
   }
 }
 
-function processResponse(job, response) {
+function processResponse(member, response) {
   if (response && response.ErrorCode !== undefined) {
     if (response.ErrorCode === 1) {
       if (response.Response.profileRecords.data === undefined || Object.keys(response.Response.characterCollectibles.data).length === 0) {
         try {
-          displayName = response.Response.profile.data.userInfo.displayName;
+          displayName = response.Response.profile.data?.userInfo.bungieGlobalDisplayName !== '' ? `${response.Response.profile.data?.userInfo.bungieGlobalDisplayName}#${response.Response.profile.data.userInfo.bungieGlobalDisplayNameCode.toString().padStart(4, '0')}` : response.Response.profile.data?.userInfo.displayName;
         } catch (e) {}
 
         if (process.env.STORE_JOB_RESULTS === 'true') {
-          pool.query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [job.membershipId]));
+          pool.query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [member.membershipId]));
         }
 
         return 'private_profile';
@@ -188,8 +198,8 @@ function processResponse(job, response) {
       // for spying 🥸
       if (collections.includes('3316003520')) {
         StatsParallelProgram.push({
-          membershipType: job.membershipType,
-          membershipId: job.membershipId,
+          membershipType: member.membershipType,
+          membershipId: member.membershipId,
         });
       }
 
@@ -230,15 +240,15 @@ function processResponse(job, response) {
                 triumphScore,
                 legacyScore,
                 activeScore,
-                collectionsTotal
+                collectionsScore
               )
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?
               )
-            ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsTotal = ?`,
+            ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsScore = ?`,
             [
-              job.membershipType,
-              job.membershipId,
+              member.membershipType,
+              member.membershipId,
               PreparedValues.displayName,
               date, //
               PreparedValues.lastPlayed,
@@ -263,7 +273,7 @@ function processResponse(job, response) {
     } else if (response.ErrorCode !== undefined) {
       if (response.ErrorCode === 1601) {
         if (process.env.STORE_JOB_RESULTS === 'true') {
-          pool.query(mysql.format(`DELETE FROM braytech.members WHERE membershipId = ?`, [job.membershipId]));
+          pool.query(mysql.format(`DELETE FROM braytech.members WHERE membershipId = ?`, [member.membershipId]));
         }
       }
 
@@ -271,7 +281,7 @@ function processResponse(job, response) {
     }
   }
 
-  fs.promises.writeFile(`./logs/error.${job.membershipId}.${Date.now()}.txt`, `${JSON.stringify(job)}\n\n${response}`);
+  fs.promises.writeFile(`./logs/error.${member.membershipId}.${Date.now()}.txt`, `${JSON.stringify(member)}\n\n${response}`);
 
   return 'unknown_error';
 }
@@ -312,10 +322,11 @@ async function updateLog() {
       INSERT INTO leaderboards.ranks (
           membershipType,
           membershipId,
+          displayName,
           triumphScore,
           legacyScore,
           activeScore,
-          collectionsTotal,
+          collectionsScore,
           triumphRank,
           legacyRank,
           activeRank,
@@ -323,10 +334,11 @@ async function updateLog() {
         ) (
           SELECT membershipType,
             membershipId,
+            displayName,
             triumphScore,
             legacyScore,
             activeScore,
-            collectionsTotal,
+            collectionsScore,
             triumphRank,
             legacyRank,
             activeRank,
@@ -343,17 +355,18 @@ async function updateLog() {
                   ORDER BY activeScore DESC
                 ) activeRank,
                 DENSE_RANK() OVER (
-                  ORDER BY collectionsTotal DESC
+                  ORDER BY collectionsScore DESC
                 ) collectionsRank
               FROM profiles.members
-              WHERE lastUpdated = ? AND lastPlayed > '2023-02-28 17:00:00' 
+              WHERE lastUpdated >= ? AND lastPlayed > '2023-02-28 17:00:00' 
               ORDER BY displayName ASC
             ) R
         ) ON DUPLICATE KEY
-      UPDATE triumphScore = R.triumphScore,
+      UPDATE displayName = R.displayName,
+        triumphScore = R.triumphScore,
         legacyScore = R.legacyScore,
         activeScore = R.activeScore,
-        collectionsTotal = R.collectionsTotal,
+        collectionsScore = R.collectionsScore,
         triumphRank = R.triumphRank,
         legacyRank = R.legacyRank,
         activeRank = R.activeRank,
