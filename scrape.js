@@ -416,7 +416,7 @@ async function updateLog() {
 
     process.exit();
   } else {
-    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${limit.activeCount}\n\nvoluspa_scraper_queue_pending ${limit.pendingCount}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_remaining ${Math.max((timeComplete.getTime() - Date.now()) / 1000, 0)}\n\n${Object.keys(jobErrors)
+    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${queue.pending}\n\nvoluspa_scraper_queue_pending ${queue.size}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_remaining ${Math.max((timeComplete.getTime() - Date.now()) / 1000, 0)}\n\n${Object.keys(jobErrors)
       .map((key) => `voluspa_scraper_job_error_${key} ${jobErrors[key]}`)
       .join('\n\n')}`;
 
@@ -436,8 +436,8 @@ async function updateLog() {
     Progress: progress,
     JobProgress: jobProgress,
     JobCompletionValue: jobCompletionValue,
-    QueueActive: limit.activeCount,
-    QueuePending: limit.pendingCount,
+    QueueActive: queue.pending,
+    QueuePending: queue.size,
     TimeElapsed: timeElapsed,
     TimeRemaining: timeRemaining,
     TimeComplete: timeComplete.toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' }),
@@ -447,7 +447,7 @@ async function updateLog() {
 
 const updateIntervalTimer = setInterval(updateLog, 5000);
 
-const jobResults = await Promise.all(jobs);
+const queueResults = await queue.onIdle();
 
-await fs.promises.writeFile(`./logs/job-results.${Date.now()}.json`, JSON.stringify(jobResults.filter((job) => job.error !== 'success')));
+await fs.promises.writeFile(`./logs/job-results.${Date.now()}.json`, JSON.stringify(queueResults.filter((job) => job.error !== 'success')));
 console.log('Saved job results to disk');
