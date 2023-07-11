@@ -67,6 +67,8 @@ members.forEach((member) => {
   queue.add(() => processJob({ member, retries: 0 }));
 });
 
+const results = [];
+
 async function processJob({ member, retries }) {
   try {
     const processStart = new Date().toISOString();
@@ -92,18 +94,19 @@ async function processJob({ member, retries }) {
       }
     }
 
-    return {
+    results.push({
       error: result,
       member: {
         membershipType: member.membershipType,
         membershipId: member.membershipId,
       },
+      retries,
       performance: {
         start: processStart,
         fetch: fetchEnd - fetchStart,
         compute: computeEnd - computeStart,
       },
-    };
+    });
   } catch (error) {
     jobRate++;
     jobProgress++;
@@ -114,14 +117,15 @@ async function processJob({ member, retries }) {
       queue.add(() => processJob({ member, retries: retries + 1 }));
     }
 
-    return {
+    results.push({
       error,
       member: {
         membershipType: member.membershipType,
         membershipId: member.membershipId,
       },
+      retries,
       performance: undefined,
-    };
+    });
   }
 }
 
@@ -447,7 +451,6 @@ async function updateLog() {
 
 const updateIntervalTimer = setInterval(updateLog, 5000);
 
-const queueResults = await queue.onIdle();
-
-await fs.promises.writeFile(`./logs/job-results.${Date.now()}.json`, JSON.stringify(queueResults.filter((job) => job.error !== 'success')));
+await queue.onIdle();
+await fs.promises.writeFile(`./logs/job-results.${Date.now()}.json`, JSON.stringify(results.filter((job) => job.error !== 'success')));
 console.log('Saved job results to disk');
