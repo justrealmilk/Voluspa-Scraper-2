@@ -81,51 +81,51 @@ async function processJob({ member, retries }) {
     const result = processResponse(member, response);
     const computeEnd = performance.now();
 
-    jobProgress++;
-    jobSuccessful++;
-
     jobRate++;
 
     if (result !== 'success') {
       jobErrors[result] = (jobErrors[result] ?? 1) + 1;
-
-      if (retries < 3) {
-        queue.add(() => processJob({ member, retries: retries + 1 }));
-      }
     }
 
-    results.push({
-      error: result,
-      member: {
-        membershipType: member.membershipType,
-        membershipId: member.membershipId,
-      },
-      retries,
-      performance: {
-        start: processStart,
-        fetch: fetchEnd - fetchStart,
-        compute: computeEnd - computeStart,
-      },
-    });
-  } catch (error) {
-    jobRate++;
-    jobProgress++;
+    if (result !== 'success' && retries < 3) {
+      queue.add(() => processJob({ member, retries: retries + 1 }));
+    } else {
+      jobProgress++;
+      jobSuccessful++;
 
+      results.push({
+        error: result,
+        member: {
+          membershipType: member.membershipType,
+          membershipId: member.membershipId,
+        },
+        retries,
+        performance: {
+          start: processStart,
+          fetch: fetchEnd - fetchStart,
+          compute: computeEnd - computeStart,
+        },
+      });
+    }
+  } catch (error) {
     fs.promises.writeFile(`./logs/error.${member.membershipId}.${Date.now()}.txt`, `${JSON.stringify(member)}\n\n${typeof error}\n\n${error.toString()}\n\n${error.message}`);
 
     if (retries < 3) {
       queue.add(() => processJob({ member, retries: retries + 1 }));
-    }
+    } else {
+      jobRate++;
+      jobProgress++;
 
-    results.push({
-      error,
-      member: {
-        membershipType: member.membershipType,
-        membershipId: member.membershipId,
-      },
-      retries,
-      performance: undefined,
-    });
+      results.push({
+        error,
+        member: {
+          membershipType: member.membershipType,
+          membershipId: member.membershipId,
+        },
+        retries,
+        performance: undefined,
+      });
+    }
   }
 }
 
@@ -322,60 +322,128 @@ async function updateLog() {
       const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
       const rankQuery = mysql.format(
         `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-      TRUNCATE leaderboards.ranks;
-      INSERT INTO leaderboards.ranks (
-          membershipType,
-          membershipId,
-          displayName,
-          triumphScore,
-          legacyScore,
-          activeScore,
-          collectionsScore,
-          triumphRank,
-          legacyRank,
-          activeRank,
-          collectionsRank
-        ) (
-          SELECT membershipType,
-            membershipId,
-            displayName,
-            triumphScore,
-            legacyScore,
-            activeScore,
-            collectionsScore,
-            triumphRank,
-            legacyRank,
-            activeRank,
-            collectionsRank
-          FROM (
-              SELECT *,
-                DENSE_RANK() OVER (
-                  ORDER BY triumphScore DESC
-                ) triumphRank,
-                DENSE_RANK() OVER (
-                  ORDER BY legacyScore DESC
-                ) legacyRank,
-                DENSE_RANK() OVER (
-                  ORDER BY activeScore DESC
-                ) activeRank,
-                DENSE_RANK() OVER (
-                  ORDER BY collectionsScore DESC
-                ) collectionsRank
-              FROM profiles.members
-              WHERE lastUpdated >= ? AND lastPlayed > '2023-02-28 17:00:00' 
-              ORDER BY displayName ASC
-            ) R
-        ) ON DUPLICATE KEY
-      UPDATE displayName = R.displayName,
-        triumphScore = R.triumphScore,
-        legacyScore = R.legacyScore,
-        activeScore = R.activeScore,
-        collectionsScore = R.collectionsScore,
-        triumphRank = R.triumphRank,
-        legacyRank = R.legacyRank,
-        activeRank = R.activeRank,
-        collectionsRank = R.collectionsRank;
-      COMMIT;`,
+
+        TRUNCATE leaderboards.ranks;
+        
+        INSERT INTO leaderboards.ranks (
+              membershipType,
+              membershipId,
+              displayName,
+              triumphScore,
+              legacyScore,
+              activeScore,
+              collectionsScore,
+              triumphRank,
+              legacyRank,
+              activeRank,
+              collectionsRank
+           ) (
+              SELECT membershipType,
+                 membershipId,
+                 displayName,
+                 triumphScore,
+                 legacyScore,
+                 activeScore,
+                 collectionsScore,
+                 triumphRank,
+                 legacyRank,
+                 activeRank,
+                 collectionsRank
+              FROM (
+                    SELECT *,
+                       DENSE_RANK() OVER (
+                          ORDER BY triumphScore DESC
+                       ) triumphRank,
+                       DENSE_RANK() OVER (
+                          ORDER BY legacyScore DESC
+                       ) legacyRank,
+                       DENSE_RANK() OVER (
+                          ORDER BY activeScore DESC
+                       ) activeRank,
+                       DENSE_RANK() OVER (
+                          ORDER BY collectionsScore DESC
+                       ) collectionsRank
+                    FROM profiles.members
+                    WHERE lastUpdated >= ?
+                       AND lastPlayed > '2023-02-28 17:00:00'
+                    ORDER BY displayName ASC
+                 ) R
+           ) ON DUPLICATE KEY
+        UPDATE displayName = R.displayName,
+           triumphScore = R.triumphScore,
+           legacyScore = R.legacyScore,
+           activeScore = R.activeScore,
+           collectionsScore = R.collectionsScore,
+           triumphRank = R.triumphRank,
+           legacyRank = R.legacyRank,
+           activeRank = R.activeRank,
+           collectionsRank = R.collectionsRank;
+        
+        UPDATE leaderboards.ranks r
+           INNER JOIN (
+              SELECT membershipId,
+                 ROW_NUMBER() OVER (
+                    ORDER BY activeRank,
+                       triumphRank,
+                       collectionsRank
+                 ) AS activePosition,
+                 ROW_NUMBER() OVER (
+                    ORDER BY legacyRank,
+                       triumphRank,
+                       collectionsRank
+                 ) AS legacyPosition,
+                 ROW_NUMBER() OVER (
+                    ORDER BY triumphRank,
+                       activeRank,
+                       collectionsRank
+                 ) AS triumphPosition,
+                 ROW_NUMBER() OVER (
+                    ORDER BY collectionsRank,
+                       triumphRank,
+                       activeRank
+                 ) AS collectionsPosition
+              FROM leaderboards.ranks
+           ) p ON p.membershipId = r.membershipId
+        SET r.activePosition = p.activePosition,
+           r.legacyPosition = p.legacyPosition,
+           r.triumphPosition = p.triumphPosition,
+           r.collectionsPosition = p.collectionsPosition;
+        
+      UPDATE leaderboards.ranks r
+           INNER JOIN (
+              SELECT membershipId,
+                 ROUND(
+                    PERCENT_RANK() OVER (
+                       ORDER BY activeScore DESC
+                    ),
+                    2
+                 ) activePercentile,
+                 ROUND(
+                    PERCENT_RANK() OVER (
+                       ORDER BY legacyScore DESC
+                    ),
+                    2
+                 ) legacyPercentile,
+                 ROUND(
+                    PERCENT_RANK() OVER (
+                       ORDER BY triumphScore DESC
+                    ),
+                    2
+                 ) triumphPercentile,
+                 ROUND(
+                    PERCENT_RANK() OVER (
+                       ORDER BY collectionsScore DESC
+                    ),
+                    2
+                 ) collectionsPercentile
+              FROM leaderboards.ranks
+           ) p ON p.membershipId = r.membershipId
+        SET r.activePercentile = p.activePercentile,
+           r.legacyPercentile = p.legacyPercentile,
+           r.triumphPercentile = p.triumphPercentile,
+           r.collectionsPercentile = p.collectionsPercentile;
+        
+        COMMIT;`,
         [scrapeStart]
       );
 
