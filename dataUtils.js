@@ -14,7 +14,6 @@ export function values(response) {
     membershipId,
     displayName,
     lastPlayed,
-    triumphScore: response.Response.profileRecords.data.lifetimeScore,
     legacyScore: response.Response.profileRecords.data.legacyScore,
     activeScore: response.Response.profileRecords.data.activeScore,
   };
