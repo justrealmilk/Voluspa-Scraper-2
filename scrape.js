@@ -241,30 +241,33 @@ function processResponse(member, response) {
                 displayName,
                 lastUpdated,
                 lastPlayed,
-                triumphScore,
                 legacyScore,
                 activeScore,
                 collectionsScore
               )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?
               )
-            ON DUPLICATE KEY UPDATE displayName = ?, lastUpdated = ?, lastPlayed = ?, triumphScore = ?, legacyScore = ?, activeScore = ?, collectionsScore = ?`,
+            ON DUPLICATE KEY UPDATE
+              displayName = ?,
+              lastUpdated = ?,
+              lastPlayed = ?,
+              legacyScore = ?,
+              activeScore = ?,
+              collectionsScore = ?`,
             [
               member.membershipType,
               member.membershipId,
               PreparedValues.displayName,
-              date, //
+              date,
               PreparedValues.lastPlayed,
-              PreparedValues.triumphScore,
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
               collections.length,
               // update...
               PreparedValues.displayName,
-              date, //
+              date,
               PreparedValues.lastPlayed,
-              PreparedValues.triumphScore,
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
               collections.length,
@@ -329,11 +332,9 @@ async function updateLog() {
               membershipType,
               membershipId,
               displayName,
-              triumphScore,
               legacyScore,
               activeScore,
               collectionsScore,
-              triumphRank,
               legacyRank,
               activeRank,
               collectionsRank
@@ -341,19 +342,14 @@ async function updateLog() {
               SELECT membershipType,
                  membershipId,
                  displayName,
-                 triumphScore,
                  legacyScore,
                  activeScore,
                  collectionsScore,
-                 triumphRank,
                  legacyRank,
                  activeRank,
                  collectionsRank
               FROM (
                     SELECT *,
-                       DENSE_RANK() OVER (
-                          ORDER BY triumphScore DESC
-                       ) triumphRank,
                        DENSE_RANK() OVER (
                           ORDER BY legacyScore DESC
                        ) legacyRank,
@@ -370,11 +366,9 @@ async function updateLog() {
                  ) R
            ) ON DUPLICATE KEY
         UPDATE displayName = R.displayName,
-           triumphScore = R.triumphScore,
            legacyScore = R.legacyScore,
            activeScore = R.activeScore,
            collectionsScore = R.collectionsScore,
-           triumphRank = R.triumphRank,
            legacyRank = R.legacyRank,
            activeRank = R.activeRank,
            collectionsRank = R.collectionsRank;
@@ -384,29 +378,23 @@ async function updateLog() {
               SELECT membershipId,
                  ROW_NUMBER() OVER (
                     ORDER BY activeRank,
-                       triumphRank,
-                       collectionsRank
+                       collectionsRank,
+                       displayName
                  ) AS activePosition,
                  ROW_NUMBER() OVER (
                     ORDER BY legacyRank,
-                       triumphRank,
-                       collectionsRank
+                       collectionsRank,
+                       displayName
                  ) AS legacyPosition,
                  ROW_NUMBER() OVER (
-                    ORDER BY triumphRank,
-                       activeRank,
-                       collectionsRank
-                 ) AS triumphPosition,
-                 ROW_NUMBER() OVER (
                     ORDER BY collectionsRank,
-                       triumphRank,
-                       activeRank
+                       activeRank,
+                       displayName
                  ) AS collectionsPosition
               FROM leaderboards.ranks
            ) p ON p.membershipId = r.membershipId
         SET r.activePosition = p.activePosition,
            r.legacyPosition = p.legacyPosition,
-           r.triumphPosition = p.triumphPosition,
            r.collectionsPosition = p.collectionsPosition;
         
       UPDATE leaderboards.ranks r
@@ -426,12 +414,6 @@ async function updateLog() {
                  ) legacyPercentile,
                  ROUND(
                     PERCENT_RANK() OVER (
-                       ORDER BY triumphScore DESC
-                    ),
-                    2
-                 ) triumphPercentile,
-                 ROUND(
-                    PERCENT_RANK() OVER (
                        ORDER BY collectionsScore DESC
                     ),
                     2
@@ -440,7 +422,6 @@ async function updateLog() {
            ) p ON p.membershipId = r.membershipId
         SET r.activePercentile = p.activePercentile,
            r.legacyPercentile = p.legacyPercentile,
-           r.triumphPercentile = p.triumphPercentile,
            r.collectionsPercentile = p.collectionsPercentile;
         
         COMMIT;`,
