@@ -12,6 +12,7 @@ dotenv.config();
 console.log('VOLUSPA');
 
 let metrics = '';
+const storeScrapeResults = process.env.STORE_JOB_RESULTS === 'true';
 
 const requestListener = function (request, response) {
   response.writeHead(200);
@@ -34,7 +35,6 @@ const puddle = mysql.createPool({
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
   connectionLimit: 10,
-  acquireTimeout: 60000,
   supportBigNumbers: true,
   multipleStatements: true,
   charset: 'utf8mb4',
@@ -133,11 +133,7 @@ function processResponse(member, response) {
   if (response && response.ErrorCode !== undefined) {
     if (response.ErrorCode === 1) {
       if (response.Response.profileRecords.data === undefined || Object.keys(response.Response.characterCollectibles.data).length === 0) {
-        try {
-          displayName = response.Response.profile.data?.userInfo.bungieGlobalDisplayName !== '' ? `${response.Response.profile.data?.userInfo.bungieGlobalDisplayName}#${response.Response.profile.data.userInfo.bungieGlobalDisplayNameCode.toString().padStart(4, '0')}` : response.Response.profile.data?.userInfo.displayName;
-        } catch (e) {}
-
-        if (process.env.STORE_JOB_RESULTS === 'true') {
+        if (storeScrapeResults) {
           pool.query(mysql.format(`UPDATE braytech.members SET isPrivate = '1' WHERE membershipId = ?`, [member.membershipId]));
         }
 
@@ -232,7 +228,7 @@ function processResponse(member, response) {
 
       const date = new Date();
 
-      if (process.env.STORE_JOB_RESULTS === 'true') {
+      if (storeScrapeResults) {
         pool.query(
           mysql.format(
             `INSERT INTO profiles.members (
@@ -279,7 +275,7 @@ function processResponse(member, response) {
       return 'success';
     } else if (response.ErrorCode !== undefined) {
       if (response.ErrorCode === 1601) {
-        if (process.env.STORE_JOB_RESULTS === 'true') {
+        if (storeScrapeResults) {
           pool.query(mysql.format(`DELETE FROM braytech.members WHERE membershipId = ?`, [member.membershipId]));
         }
       }
@@ -299,8 +295,6 @@ let finalising = false;
 // relaying updates to the console/saving final statistics
 async function updateLog() {
   const progress = Math.floor((jobProgress / jobCompletionValue) * 100);
-  const timeElapsed = Math.ceil((Date.now() - scrapeStart.getTime()) / 60000);
-  const timeRemaining = Math.floor((((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress)) / 60000);
   const timeComplete = new Date(Date.now() + ((Date.now() - scrapeStart.getTime()) / Math.max(jobProgress, 1)) * (jobCompletionValue - jobProgress));
 
   if (jobProgress === jobCompletionValue && finalising === false) {
@@ -321,7 +315,7 @@ async function updateLog() {
     await fs.promises.writeFile('./temp/parallel-program.json', JSON.stringify(StatsParallelProgram));
     console.log('Saved Parallel Program stats to disk');
 
-    if (process.env.STORE_JOB_RESULTS === 'true') {
+    if (storeScrapeResults) {
       const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
       const rankQuery = mysql.format(
         `SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
@@ -484,18 +478,6 @@ async function updateLog() {
       fs.promises.writeFile('./temp/parallel-program.temp.json', JSON.stringify(StatsParallelProgram)),
     ]);
   }
-
-  console.table({
-    Progress: progress,
-    JobProgress: jobProgress,
-    JobCompletionValue: jobCompletionValue,
-    QueueActive: queue.pending,
-    QueuePending: queue.size,
-    TimeElapsed: timeElapsed,
-    TimeRemaining: timeRemaining,
-    TimeComplete: timeComplete.toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'long', hour12: false, timeZone: 'Australia/Brisbane' }),
-    ParallelPrograms: StatsParallelProgram.length,
-  });
 }
 
 const updateIntervalTimer = setInterval(updateLog, 5000);
