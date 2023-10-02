@@ -448,14 +448,14 @@ async function updateLog() {
       console.log('Cache commonality...');
       await fetch(`http://0.0.0.0:8080/Generate/Commonality?id=${status.insertId}`, {
         headers: {
-          'x-api-key': 'insomnia',
+          'x-api-key': process.env.VOLUSPA_API_KEY,
         },
       });
       console.log('Cached commonality...');
       console.log('Generate common...');
       await fetch('http://0.0.0.0:8080/Generate', {
         headers: {
-          'x-api-key': 'insomnia',
+          'x-api-key': process.env.VOLUSPA_API_KEY,
         },
       });
       console.log('Generated common...');
