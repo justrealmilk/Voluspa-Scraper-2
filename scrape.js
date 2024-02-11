@@ -1,8 +1,8 @@
 import fs from 'fs';
+import http from 'http';
+import dotenv from 'dotenv';
 import mysql from 'mysql2';
 import pQueue from 'p-queue';
-import dotenv from 'dotenv';
-import http from 'http';
 
 import { customFetch } from './requestUtils.js';
 import { values } from './dataUtils.js';
@@ -25,7 +25,7 @@ server.listen(8181, '0.0.0.0', () => {
   console.log(`HTTP server started`);
 });
 
-const queue = new pQueue({ concurrency: 150 });
+const queue = new pQueue({ concurrency: 180 });
 
 // setup basic db stuff
 const puddle = mysql.createPool({
@@ -108,6 +108,7 @@ async function processJob({ member, retries }) {
       });
     }
   } catch (error) {
+    console.log(error)
     fs.promises.writeFile(`./logs/error.${member.membershipId}.${Date.now()}.txt`, `${JSON.stringify(member)}\n\n${typeof error}\n\n${error.toString()}\n\n${error.message}`);
 
     if (retries < 3) {
@@ -239,18 +240,20 @@ function processResponse(member, response) {
                 lastPlayed,
                 legacyScore,
                 activeScore,
-                collectionsScore
+                collectionScore,
+                seals
               )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
               )
             ON DUPLICATE KEY UPDATE
-              displayName = ?,
-              lastUpdated = ?,
-              lastPlayed = ?,
-              legacyScore = ?,
-              activeScore = ?,
-              collectionsScore = ?`,
+              displayName = VALUES(displayName),
+              lastUpdated = VALUES(lastUpdated),
+              lastPlayed = VALUES(lastPlayed),
+              legacyScore = VALUES(legacyScore),
+              activeScore = VALUES(activeScore),
+              collectionScore = VALUES(collectionScore),
+              seals = VALUES(seals)`,
             [
               member.membershipType,
               member.membershipId,
@@ -260,13 +263,7 @@ function processResponse(member, response) {
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
               collections.length,
-              // update...
-              PreparedValues.displayName,
-              date,
-              PreparedValues.lastPlayed,
-              PreparedValues.legacyScore,
-              PreparedValues.activeScore,
-              collections.length,
+              JSON.stringify(PreparedValues.seals)
             ]
           )
         );
@@ -328,20 +325,20 @@ async function updateLog() {
               displayName,
               legacyScore,
               activeScore,
-              collectionsScore,
+              collectionScore,
               legacyRank,
               activeRank,
-              collectionsRank
+              collectionRank
            ) (
               SELECT membershipType,
                  membershipId,
                  displayName,
                  legacyScore,
                  activeScore,
-                 collectionsScore,
+                 collectionScore,
                  legacyRank,
                  activeRank,
-                 collectionsRank
+                 collectionRank
               FROM (
                     SELECT *,
                        DENSE_RANK() OVER (
@@ -351,8 +348,8 @@ async function updateLog() {
                           ORDER BY activeScore DESC
                        ) activeRank,
                        DENSE_RANK() OVER (
-                          ORDER BY collectionsScore DESC
-                       ) collectionsRank
+                          ORDER BY collectionScore DESC
+                       ) collectionRank
                     FROM profiles.members
                     WHERE lastUpdated >= ?
                        AND lastPlayed > '2023-02-28 17:00:00'
@@ -362,34 +359,34 @@ async function updateLog() {
         UPDATE displayName = R.displayName,
            legacyScore = R.legacyScore,
            activeScore = R.activeScore,
-           collectionsScore = R.collectionsScore,
+           collectionScore = R.collectionScore,
            legacyRank = R.legacyRank,
            activeRank = R.activeRank,
-           collectionsRank = R.collectionsRank;
+           collectionRank = R.collectionRank;
         
         UPDATE leaderboards.ranks r
            INNER JOIN (
               SELECT membershipId,
                  ROW_NUMBER() OVER (
                     ORDER BY activeRank,
-                       collectionsRank,
+                       collectionRank,
                        displayName
                  ) AS activePosition,
                  ROW_NUMBER() OVER (
                     ORDER BY legacyRank,
-                       collectionsRank,
+                       collectionRank,
                        displayName
                  ) AS legacyPosition,
                  ROW_NUMBER() OVER (
-                    ORDER BY collectionsRank,
+                    ORDER BY collectionRank,
                        activeRank,
                        displayName
-                 ) AS collectionsPosition
+                 ) AS collectionPosition
               FROM leaderboards.ranks
            ) p ON p.membershipId = r.membershipId
         SET r.activePosition = p.activePosition,
            r.legacyPosition = p.legacyPosition,
-           r.collectionsPosition = p.collectionsPosition;
+           r.collectionPosition = p.collectionPosition;
         
       UPDATE leaderboards.ranks r
            INNER JOIN (
@@ -408,15 +405,15 @@ async function updateLog() {
                  ) legacyPercentile,
                  ROUND(
                     PERCENT_RANK() OVER (
-                       ORDER BY collectionsScore DESC
+                       ORDER BY collectionScore DESC
                     ),
                     2
-                 ) collectionsPercentile
+                 ) collectionPercentile
               FROM leaderboards.ranks
            ) p ON p.membershipId = r.membershipId
         SET r.activePercentile = p.activePercentile,
            r.legacyPercentile = p.legacyPercentile,
-           r.collectionsPercentile = p.collectionsPercentile;
+           r.collectionPercentile = p.collectionPercentile;
         
         COMMIT;`,
         [scrapeStart]

@@ -33,11 +33,11 @@ const pool = puddle.promise();
 //     triumphScore,
 //     legacyScore,
 //     activeScore,
-//     collectionsScore,
+//     collectionScore,
 //     triumphRank,
 //     legacyRank,
 //     activeRank,
-//     collectionsRank
+//     collectionRank
 //   ) (
 //     SELECT membershipType,
 //       membershipId,
@@ -45,11 +45,11 @@ const pool = puddle.promise();
 //       triumphScore,
 //       legacyScore,
 //       activeScore,
-//       collectionsScore,
+//       collectionScore,
 //       triumphRank,
 //       legacyRank,
 //       activeRank,
-//       collectionsRank
+//       collectionRank
 //     FROM (
 //         SELECT *,
 //           DENSE_RANK() OVER (
@@ -62,8 +62,8 @@ const pool = puddle.promise();
 //             ORDER BY activeScore DESC
 //           ) activeRank,
 //           DENSE_RANK() OVER (
-//             ORDER BY collectionsScore DESC
-//           ) collectionsRank
+//             ORDER BY collectionScore DESC
+//           ) collectionRank
 //         FROM profiles.members
 //         WHERE lastUpdated >= ? AND lastPlayed > '2023-02-28 17:00:00' 
 //         ORDER BY displayName ASC
@@ -73,11 +73,11 @@ const pool = puddle.promise();
 //   triumphScore = R.triumphScore,
 //   legacyScore = R.legacyScore,
 //   activeScore = R.activeScore,
-//   collectionsScore = R.collectionsScore,
+//   collectionScore = R.collectionScore,
 //   triumphRank = R.triumphRank,
 //   legacyRank = R.legacyRank,
 //   activeRank = R.activeRank,
-//   collectionsRank = R.collectionsRank;
+//   collectionRank = R.collectionRank;
 // COMMIT;`,
 //   ['2023-07-11 12:37:22']
 // );
