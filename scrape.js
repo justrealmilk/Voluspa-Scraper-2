@@ -108,7 +108,7 @@ async function processJob({ member, retries }) {
       });
     }
   } catch (error) {
-    console.log(error)
+    console.log(error);
     fs.promises.writeFile(`./logs/error.${member.membershipId}.${Date.now()}.txt`, `${JSON.stringify(member)}\n\n${typeof error}\n\n${error.toString()}\n\n${error.message}`);
 
     if (retries < 3) {
@@ -255,7 +255,7 @@ function processResponse(member, response) {
               collectionScore = VALUES(collectionScore),
               seals = VALUES(seals)`,
             [
-              member.membershipType,
+              member.membershipType, //
               member.membershipId,
               PreparedValues.displayName,
               date,
@@ -263,7 +263,7 @@ function processResponse(member, response) {
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
               collections.length,
-              JSON.stringify(PreparedValues.seals)
+              PreparedValues.seals !== null ? JSON.stringify(PreparedValues.seals) : null,
             ]
           )
         );
