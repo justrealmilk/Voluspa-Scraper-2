@@ -58,11 +58,11 @@ function seals(response) {
       if (completionRecordHash !== undefined) {
         const record = manifest.DestinyRecordDefinition[completionRecordHash].scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
 
-        state.push({ presentationNodeHash, state: record.state });
+        state.push(`[${presentationNodeHash},${record.state}]`);
       }
     }
 
-    return state;
+    return `[${state.join(',')}]`;
   } else {
     return null;
   }

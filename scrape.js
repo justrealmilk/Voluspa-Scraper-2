@@ -25,7 +25,7 @@ server.listen(8181, '0.0.0.0', () => {
   console.log(`HTTP server started`);
 });
 
-const queue = new pQueue({ concurrency: 180 });
+const queue = new pQueue({ concurrency: 150 });
 
 // setup basic db stuff
 const puddle = mysql.createPool({
@@ -263,7 +263,7 @@ function processResponse(member, response) {
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
               collections.length,
-              PreparedValues.seals !== null ? JSON.stringify(PreparedValues.seals) : null,
+              PreparedValues.seals,
             ]
           )
         );
