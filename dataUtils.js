@@ -6,255 +6,323 @@
 //   .then((state) => fs.promises.readFile(`../voluspa/cache/manifest/versions/${state.version}/definitions.json`, 'utf8'))
 //   .then((string) => JSON.parse(string));
 
+// console.log([...manifest.DestinyPresentationNodeDefinition[616318467].children.presentationNodes, ...manifest.DestinyPresentationNodeDefinition[1881970629].children.presentationNodes].map(({ presentationNodeHash }) => ({
+//   presentationNodeHash,
+//   completionRecordHash: manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash,
+//   scope: manifest.DestinyRecordDefinition[manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash!].scope
+// })))
+
 // const sealPresentationNodeHashes = [...manifest.DestinyPresentationNodeDefinition[616318467].children.presentationNodes, ...manifest.DestinyPresentationNodeDefinition[1881970629].children.presentationNodes];
 const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 1210906309,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3175660257,
+    scope: 1,
   },
   {
     presentationNodeHash: 1270675703,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 4083696547,
+    scope: 0,
   },
   {
     presentationNodeHash: 1270675702,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2269203216,
+    scope: 0,
   },
   {
     presentationNodeHash: 1270675701,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3570567217,
+    scope: 0,
   },
   {
     presentationNodeHash: 1270675700,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1722592950,
+    scope: 0,
   },
   {
     presentationNodeHash: 1021469803,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1142693639,
+    scope: 0,
   },
   {
     presentationNodeHash: 238107129,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 865076293,
+    scope: 0,
   },
   {
     presentationNodeHash: 4186496383,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3906538939,
+    scope: 0,
   },
   {
     presentationNodeHash: 1976056830,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2889189256,
+    scope: 0,
   },
   {
     presentationNodeHash: 1317417718,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3646306576,
+    scope: 0,
   },
   {
     presentationNodeHash: 3896035657,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2126152885,
+    scope: 0,
   },
   {
     presentationNodeHash: 1705744655,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3974717227,
+    scope: 0,
   },
   {
     presentationNodeHash: 4183969062,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2302993504,
+    scope: 0,
   },
   {
     presentationNodeHash: 2592822840,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1089543274,
+    scope: 0,
   },
   {
     presentationNodeHash: 475207334,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 969142496,
+    scope: 0,
   },
   {
     presentationNodeHash: 2613142083,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3910736783,
+    scope: 0,
   },
   {
     presentationNodeHash: 3598951881,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3056675381,
+    scope: 0,
   },
   {
     presentationNodeHash: 2594486939,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1228693527,
+    scope: 0,
   },
   {
     presentationNodeHash: 854126634,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3097916612,
+    scope: 0,
   },
   {
     presentationNodeHash: 2161171268,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1564001702,
+    scope: 0,
   },
   {
     presentationNodeHash: 3061040177,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2489106733,
+    scope: 0,
   },
   {
     presentationNodeHash: 2886738008,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1971228746,
+    scope: 0,
   },
   {
     presentationNodeHash: 2185719388,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3588818798,
+    scope: 0,
   },
   {
     presentationNodeHash: 361765966,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1438167672,
+    scope: 0,
   },
   {
     presentationNodeHash: 1733555826,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3298130972,
+    scope: 0,
   },
   {
     presentationNodeHash: 3776992251,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3464275895,
+    scope: 0,
   },
   {
     presentationNodeHash: 3665267419,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1556658903,
+    scope: 0,
   },
   {
     presentationNodeHash: 79180995,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2482004751,
+    scope: 0,
   },
   {
     presentationNodeHash: 3734352323,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 4141971983,
+    scope: 0,
   },
   {
     presentationNodeHash: 2960810718,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 540377256,
+    scope: 0,
   },
   {
     presentationNodeHash: 379405979,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2584970263,
+    scope: 0,
   },
   {
     presentationNodeHash: 1827854727,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2909250963,
+    scope: 0,
   },
   {
     presentationNodeHash: 560097044,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3214425110,
+    scope: 0,
   },
   {
     presentationNodeHash: 1486062207,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1384029371,
+    scope: 0,
   },
   {
     presentationNodeHash: 1210906308,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3249408038,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008452,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 4250626982,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008453,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 4176879201,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008458,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3947410852,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008459,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1710217127,
+    scope: 0,
   },
   {
     presentationNodeHash: 2107507397,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1343839969,
+    scope: 0,
   },
   {
     presentationNodeHash: 1210906311,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1284946259,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008456,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2991743002,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008457,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2796658869,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008462,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1087927672,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008463,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1561715947,
+    scope: 0,
   },
   {
     presentationNodeHash: 1210906310,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1109459264,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008460,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3169895614,
+    scope: 0,
   },
   {
     presentationNodeHash: 1321008461,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2499679097,
+    scope: 0,
   },
   {
     presentationNodeHash: 955166375,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1185680627,
+    scope: 0,
   },
   {
     presentationNodeHash: 955166374,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 1866578144,
+    scope: 0,
   },
   {
     presentationNodeHash: 1194128730,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 966207508,
+    scope: 0,
   },
   {
     presentationNodeHash: 717225803,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2056461735,
+    scope: 0,
   },
   {
     presentationNodeHash: 2978379966,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2472740040,
+    scope: 0,
   },
   {
     presentationNodeHash: 450166688,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 317521250,
+    scope: 0,
   },
   {
     presentationNodeHash: 1106177979,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 758645239,
+    scope: 0,
   },
   {
     presentationNodeHash: 3680676656,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 3766199186,
+    scope: 0,
   },
   {
     presentationNodeHash: 581214566,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 4167244320,
+    scope: 0,
   },
   {
     presentationNodeHash: 3212358005,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2980266417,
+    scope: 0,
   },
   {
     presentationNodeHash: 1376640684,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2226626398,
+    scope: 0,
   },
   {
     presentationNodeHash: 1276693937,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2126548397,
+    scope: 0,
   },
   {
     presentationNodeHash: 3251218484,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2284880502,
+    scope: 0,
   },
   {
     presentationNodeHash: 2086100423,
-    nodeDisplayPriority: 0,
+    completionRecordHash: 2072890963,
+    scope: 0,
   },
 ];
 
@@ -263,17 +331,13 @@ export function values(response) {
   const membershipId = response.Response.profile.data.userInfo.membershipId;
   const displayName = response.Response.profile.data?.userInfo.bungieGlobalDisplayName !== '' ? `${response.Response.profile.data?.userInfo.bungieGlobalDisplayName}#${response.Response.profile.data.userInfo.bungieGlobalDisplayNameCode.toString().padStart(4, '0')}` : response.Response.profile.data?.userInfo.displayName.slice(0, 32);
 
-  let lastPlayed = new Date(response.Response.profile.data.dateLastPlayed);
-
-  if (lastPlayed.getTime() < 10000) {
-    lastPlayed = null;
-  }
+  const lastPlayed = new Date(response.Response.profile.data.dateLastPlayed);
 
   return {
     membershipType,
     membershipId,
     displayName,
-    lastPlayed,
+    lastPlayed: lastPlayed.getTime() > 10000 ? lastPlayed : null,
     legacyScore: response.Response.profileRecords.data.legacyScore,
     activeScore: response.Response.profileRecords.data.activeScore,
     seals: seals(response),
@@ -287,7 +351,7 @@ export function defaultCharacterId(response) {
 
       return characterIds[0][0];
     } else {
-      const characterIds = [...response.Response.profile.data.characterIds].sort((a, b) => new Date(response.Response.characters.data[b].dateLastPlayed).getTime() - new Date(response.Response.characters.data[a].dateLastPlayed).getTime());
+      const characterIds = response.Response.profile.data.characterIds.sort((a, b) => new Date(response.Response.characters.data[b].dateLastPlayed).getTime() - new Date(response.Response.characters.data[a].dateLastPlayed).getTime());
 
       return characterIds[0];
     }
@@ -297,19 +361,15 @@ export function defaultCharacterId(response) {
 }
 
 function seals(response) {
-  const characterId = defaultCharacterId(response);
+  const characterId = response.Response.profile.data.characterIds[0];
 
   if (characterId !== undefined) {
     const state = [];
 
-    for (const { presentationNodeHash } of sealPresentationNodeHashes) {
-      const completionRecordHash = manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash;
+    for (const { presentationNodeHash, completionRecordHash, scope } of sealPresentationNodeHashes) {
+      const record = scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
 
-      if (completionRecordHash !== undefined) {
-        const record = manifest.DestinyRecordDefinition[completionRecordHash].scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
-
-        state.push(`[${presentationNodeHash},${record.state}]`);
-      }
+      state.push(`[${presentationNodeHash},${record.state}]`);
     }
 
     return `[${state.join(',')}]`;
