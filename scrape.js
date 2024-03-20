@@ -5,7 +5,7 @@ import mysql from 'mysql2';
 import pQueue from 'p-queue';
 
 import { customFetch } from './requestUtils.js';
-import { values } from './dataUtils.js';
+import { basic, seals } from './dataUtils.js';
 
 dotenv.config();
 
@@ -225,7 +225,7 @@ function processResponse(member, response) {
       }
 
       // values specifically for storing in the database for things like leaderboards
-      const PreparedValues = values(response);
+      const PreparedValues = basic(response);
 
       const date = new Date();
 
@@ -240,11 +240,10 @@ function processResponse(member, response) {
                 lastPlayed,
                 legacyScore,
                 activeScore,
-                collectionScore,
-                seals
+                collectionScore
               )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?
               )
             ON DUPLICATE KEY UPDATE
               displayName = VALUES(displayName),
@@ -252,8 +251,7 @@ function processResponse(member, response) {
               lastPlayed = VALUES(lastPlayed),
               legacyScore = VALUES(legacyScore),
               activeScore = VALUES(activeScore),
-              collectionScore = VALUES(collectionScore),
-              seals = VALUES(seals)
+              collectionScore = VALUES(collectionScore)
             `,
             [
               member.membershipType, //
@@ -263,8 +261,28 @@ function processResponse(member, response) {
               PreparedValues.lastPlayed,
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
-              collections.length,
-              PreparedValues.seals
+              collections.length
+            ]
+          )
+        );
+        pool.query(
+          mysql.format(
+            `INSERT INTO profiles.members_seals (
+                date,
+                membershipId,
+                presentationNodeHash,
+                completionRecordState,
+                gildingRecordState,
+                gildingCompletedCount
+              )
+            VALUES ?
+            `,
+            [
+              seals(response).map((seal) => ([
+                scrapeStart,
+                member.membershipId,
+                ...seal,
+              ]))
             ]
           )
         );

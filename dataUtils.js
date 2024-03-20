@@ -9,10 +9,12 @@
 // console.log([...manifest.DestinyPresentationNodeDefinition[616318467].children.presentationNodes, ...manifest.DestinyPresentationNodeDefinition[1881970629].children.presentationNodes].map(({ presentationNodeHash }) => ({
 //   presentationNodeHash,
 //   completionRecordHash: manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash,
+//   gildingTrackingRecordHash: manifest.DestinyRecordDefinition[manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash!].titleInfo.gildingTrackingRecordHash,
 //   scope: manifest.DestinyRecordDefinition[manifest.DestinyPresentationNodeDefinition[presentationNodeHash].completionRecordHash!].scope
 // })))
 
 // const sealPresentationNodeHashes = [...manifest.DestinyPresentationNodeDefinition[616318467].children.presentationNodes, ...manifest.DestinyPresentationNodeDefinition[1881970629].children.presentationNodes];
+
 const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 1210906309,
@@ -62,11 +64,13 @@ const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 1317417718,
     completionRecordHash: 3646306576,
+    gildingTrackingRecordHash: 1655448318,
     scope: 0,
   },
   {
     presentationNodeHash: 3896035657,
     completionRecordHash: 2126152885,
+    gildingTrackingRecordHash: 908738851,
     scope: 0,
   },
   {
@@ -82,11 +86,13 @@ const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 2592822840,
     completionRecordHash: 1089543274,
+    gildingTrackingRecordHash: 2981294724,
     scope: 0,
   },
   {
     presentationNodeHash: 475207334,
     completionRecordHash: 969142496,
+    gildingTrackingRecordHash: 2228586830,
     scope: 0,
   },
   {
@@ -97,6 +103,7 @@ const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 3598951881,
     completionRecordHash: 3056675381,
+    gildingTrackingRecordHash: 3417514659,
     scope: 0,
   },
   {
@@ -112,6 +119,7 @@ const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 2161171268,
     completionRecordHash: 1564001702,
+    gildingTrackingRecordHash: 2561695992,
     scope: 0,
   },
   {
@@ -132,21 +140,25 @@ const sealPresentationNodeHashes = [
   {
     presentationNodeHash: 361765966,
     completionRecordHash: 1438167672,
+    gildingTrackingRecordHash: 4141599814,
     scope: 0,
   },
   {
     presentationNodeHash: 1733555826,
     completionRecordHash: 3298130972,
+    gildingTrackingRecordHash: 2506618338,
     scope: 0,
   },
   {
     presentationNodeHash: 3776992251,
     completionRecordHash: 3464275895,
+    gildingTrackingRecordHash: 1715149073,
     scope: 0,
   },
   {
     presentationNodeHash: 3665267419,
     completionRecordHash: 1556658903,
+    gildingTrackingRecordHash: 1249847601,
     scope: 0,
   },
   {
@@ -326,7 +338,7 @@ const sealPresentationNodeHashes = [
   },
 ];
 
-export function values(response) {
+export function basic(response) {
   const membershipType = response.Response.profile.data.userInfo.membershipType;
   const membershipId = response.Response.profile.data.userInfo.membershipId;
   const displayName = response.Response.profile.data?.userInfo.bungieGlobalDisplayName !== '' ? `${response.Response.profile.data?.userInfo.bungieGlobalDisplayName}#${response.Response.profile.data.userInfo.bungieGlobalDisplayNameCode.toString().padStart(4, '0')}` : response.Response.profile.data?.userInfo.displayName.slice(0, 32);
@@ -340,7 +352,6 @@ export function values(response) {
     lastPlayed: lastPlayed.getTime() > 10000 ? lastPlayed : null,
     legacyScore: response.Response.profileRecords.data.legacyScore,
     activeScore: response.Response.profileRecords.data.activeScore,
-    seals: seals(response),
   };
 }
 
@@ -360,19 +371,25 @@ export function defaultCharacterId(response) {
   }
 }
 
-function seals(response) {
+export function seals(response) {
   const characterId = response.Response.profile.data.characterIds[0];
 
   if (characterId !== undefined) {
-    const state = [];
+    const states = [];
 
-    for (const { presentationNodeHash, completionRecordHash, scope } of sealPresentationNodeHashes) {
-      const record = scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
+    for (const { presentationNodeHash, completionRecordHash, gildingTrackingRecordHash, scope } of sealPresentationNodeHashes) {
+      const completionRecord = scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
+      const gildingRecord = scope === 1 ? response.Response.characterRecords.data[characterId].records[gildingTrackingRecordHash] : response.Response.profileRecords.data.records[gildingTrackingRecordHash];
 
-      state.push(`[${presentationNodeHash},${record.state}]`);
+      states.push([
+        presentationNodeHash,
+        completionRecord.state,
+        gildingRecord?.state,
+        gildingRecord?.completedCount,
+      ]);
     }
 
-    return `[${state.join(',')}]`;
+    return states;
   } else {
     return null;
   }
