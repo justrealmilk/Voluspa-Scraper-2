@@ -363,97 +363,154 @@ async function updateLog() {
               membershipType,
               membershipId,
               displayName,
-              legacyScore,
               activeScore,
+              sealScore,
+              gildScore,
+              legacyScore,
               collectionScore,
-              legacyRank,
               activeRank,
+              sealRank,
+              gildRank,
+              legacyRank,
               collectionRank
-           ) (
-              SELECT membershipType,
-                 membershipId,
-                 displayName,
-                 legacyScore,
-                 activeScore,
-                 collectionScore,
-                 legacyRank,
-                 activeRank,
-                 collectionRank
+          ) (
+              SELECT R.membershipType,
+                R.membershipId,
+                R.displayName,
+                R.activeScore,
+                R.sealScore,
+                R.gildScore,
+                R.legacyScore,
+                R.collectionScore,
+                R.activeRank,
+                R.sealRank,
+                R.gildRank,
+                R.legacyRank,
+                R.collectionRank
               FROM (
-                    SELECT *,
-                       DENSE_RANK() OVER (
-                          ORDER BY legacyScore DESC
-                       ) legacyRank,
-                       DENSE_RANK() OVER (
-                          ORDER BY activeScore DESC
-                       ) activeRank,
-                       DENSE_RANK() OVER (
-                          ORDER BY collectionScore DESC
-                       ) collectionRank
-                    FROM profiles.members
-                    WHERE lastUpdated >= ?
-                       AND lastPlayed > '2023-02-28 17:00:00'
-                    ORDER BY displayName ASC
-                 ) R
-           ) ON DUPLICATE KEY
+                    SELECT members.*,
+                      members_seals.sealScore,
+                      members_seals.gildScore,
+                      DENSE_RANK() OVER (
+                          ORDER BY members.legacyScore DESC
+                      ) AS legacyRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members.activeScore DESC
+                      ) AS activeRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members.collectionScore DESC
+                      ) AS collectionRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members_seals.sealScore DESC
+                      ) AS sealRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members_seals.gildScore DESC
+                      ) AS gildRank
+                    FROM profiles.members AS members
+                      JOIN (
+                          SELECT membershipId,
+                            COUNT(
+                                CASE
+                                  WHEN (completionRecordState & 4) = 0 THEN 1
+                                END
+                            ) AS sealScore,
+                            SUM(gildingCompletedCount) AS gildScore
+                          FROM profiles.members_seals as s
+                          GROUP BY membershipId
+                      ) AS members_seals ON members.membershipId = members_seals.membershipId
+                    WHERE members.lastUpdated >= ?
+                      AND members.lastPlayed > '2023-02-28 17:00:00'
+                    ORDER BY members.displayName ASC
+                ) as R
+          ) ON DUPLICATE KEY
         UPDATE displayName = R.displayName,
-           legacyScore = R.legacyScore,
-           activeScore = R.activeScore,
-           collectionScore = R.collectionScore,
-           legacyRank = R.legacyRank,
-           activeRank = R.activeRank,
-           collectionRank = R.collectionRank;
+          activeScore = R.activeScore,
+          sealScore = R.sealScore,
+          gildScore = R.gildScore,
+          legacyScore = R.legacyScore,
+          collectionScore = R.collectionScore,
+          activeRank = R.activeRank,
+          sealRank = R.sealRank,
+          gildRank = R.gildRank,
+          legacyRank = R.legacyRank,
+          collectionRank = R.collectionRank;
         
         UPDATE leaderboards.ranks r
-           INNER JOIN (
+          INNER JOIN (
               SELECT membershipId,
-                 ROW_NUMBER() OVER (
+                ROW_NUMBER() OVER (
                     ORDER BY activeRank,
-                       collectionRank,
-                       displayName
-                 ) AS activePosition,
-                 ROW_NUMBER() OVER (
+                      collectionRank,
+                      displayName
+                ) AS activePosition,
+                ROW_NUMBER() OVER (
+                    ORDER BY sealRank,
+                      activeRank,
+                      displayName
+                ) AS sealPosition,
+                ROW_NUMBER() OVER (
+                    ORDER BY gildRank,
+                      activeRank,
+                      displayName
+                ) AS gildPosition,
+                ROW_NUMBER() OVER (
                     ORDER BY legacyRank,
-                       collectionRank,
-                       displayName
-                 ) AS legacyPosition,
-                 ROW_NUMBER() OVER (
+                      collectionRank,
+                      displayName
+                ) AS legacyPosition,
+                ROW_NUMBER() OVER (
                     ORDER BY collectionRank,
-                       activeRank,
-                       displayName
-                 ) AS collectionPosition
+                      activeRank,
+                      displayName
+                ) AS collectionPosition
               FROM leaderboards.ranks
-           ) p ON p.membershipId = r.membershipId
+          ) p ON p.membershipId = r.membershipId
         SET r.activePosition = p.activePosition,
-           r.legacyPosition = p.legacyPosition,
-           r.collectionPosition = p.collectionPosition;
+          r.sealPosition = p.sealPosition,
+          r.gildPosition = p.gildPosition,
+          r.legacyPosition = p.legacyPosition,
+          r.collectionPosition = p.collectionPosition;
         
-      UPDATE leaderboards.ranks r
-           INNER JOIN (
-              SELECT membershipId,
-                 ROUND(
-                    PERCENT_RANK() OVER (
-                       ORDER BY activeScore DESC
-                    ),
-                    2
-                 ) activePercentile,
-                 ROUND(
-                    PERCENT_RANK() OVER (
-                       ORDER BY legacyScore DESC
-                    ),
-                    2
-                 ) legacyPercentile,
-                 ROUND(
-                    PERCENT_RANK() OVER (
-                       ORDER BY collectionScore DESC
-                    ),
-                    2
-                 ) collectionPercentile
-              FROM leaderboards.ranks
-           ) p ON p.membershipId = r.membershipId
+        UPDATE leaderboards.ranks r
+          INNER JOIN (
+             SELECT membershipId,
+                ROUND(
+                   PERCENT_RANK() OVER (
+                      ORDER BY activeScore DESC
+                   ),
+                   2
+                ) activePercentile,
+                ROUND(
+                   PERCENT_RANK() OVER (
+                      ORDER BY sealScore DESC
+                   ),
+                   2
+                ) sealPercentile,
+                ROUND(
+                   PERCENT_RANK() OVER (
+                      ORDER BY gildScore DESC
+                   ),
+                   2
+                ) gildPercentile,
+                ROUND(
+                   PERCENT_RANK() OVER (
+                      ORDER BY legacyScore DESC
+                   ),
+                   2
+                ) legacyPercentile,
+                ROUND(
+                   PERCENT_RANK() OVER (
+                      ORDER BY collectionScore DESC
+                   ),
+                   2
+                ) collectionPercentile
+             FROM leaderboards.ranks
+          ) p ON p.membershipId = r.membershipId
         SET r.activePercentile = p.activePercentile,
-           r.legacyPercentile = p.legacyPercentile,
-           r.collectionPercentile = p.collectionPercentile;
+          r.sealPercentile = p.sealPercentile,
+          r.gildPercentile = p.gildPercentile,
+          r.legacyPercentile = p.legacyPercentile,
+          r.collectionPercentile = p.collectionPercentile;
         
         COMMIT;`,
         [scrapeStart]
