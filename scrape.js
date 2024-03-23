@@ -51,7 +51,6 @@ console.log('Results received');
 // empty objects to hold statistics for later
 const StatsTriumphs = {};
 const StatsCollections = {};
-const StatsParallelProgram = [];
 
 // variables for relaying progress to the console
 let jobCompletionValue = members.length;
@@ -194,14 +193,6 @@ function processResponse(member, response) {
             }
           }
         }
-      }
-
-      // for spying 🥸
-      if (collections.includes('3316003520')) {
-        StatsParallelProgram.push({
-          membershipType: member.membershipType,
-          membershipId: member.membershipId,
-        });
       }
 
       for (let index = 0; index < triumphs.length; index++) {
@@ -347,10 +338,6 @@ async function updateLog() {
     await fs.promises.copyFile('./temp/collections.json', './temp/collections.previous.json');
     await fs.promises.writeFile('./temp/collections.json', JSON.stringify(StatsCollections));
     console.log('Saved Collections stats to disk');
-
-    await fs.promises.copyFile('./temp/parallel-program.json', './temp/parallel-program.previous.json');
-    await fs.promises.writeFile('./temp/parallel-program.json', JSON.stringify(StatsParallelProgram));
-    console.log('Saved Parallel Program stats to disk');
 
     if (storeScrapeResults) {
       const scrapesStatusQuery = mysql.format(`INSERT INTO profiles.scrapes (date, duration, crawled, assessed) VALUES (?, ?, ?, ?);`, [scrapeStart, Math.ceil((Date.now() - scrapeStart.getTime()) / 60000), jobCompletionValue, jobSuccessful]);
@@ -550,7 +537,7 @@ async function updateLog() {
 
     process.exit();
   } else {
-    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${queue.pending}\n\nvoluspa_scraper_queue_pending ${queue.size}\n\nvoluspa_scraper_job_parallel_programs ${StatsParallelProgram.length}\n\nvoluspa_scraper_job_time_remaining ${Math.max((timeComplete.getTime() - Date.now()) / 1000, 0)}\n\n${Object.keys(jobErrors)
+    metrics = `voluspa_scraper_progress ${progress}\n\nvoluspa_scraper_job_rate ${jobRate}\n\nvoluspa_scraper_job_progress ${jobProgress}\n\nvoluspa_scraper_job_completion_value ${jobCompletionValue}\n\nvoluspa_scraper_queue_active ${queue.pending}\n\nvoluspa_scraper_queue_pending ${queue.size}\n\nvoluspa_scraper_job_time_remaining ${Math.max((timeComplete.getTime() - Date.now()) / 1000, 0)}\n\n${Object.keys(jobErrors)
       .map((key) => `voluspa_scraper_job_error_${key} ${jobErrors[key]}`)
       .join('\n\n')}`;
 
@@ -558,12 +545,6 @@ async function updateLog() {
     Object.keys(jobErrors).forEach((key) => {
       jobErrors[key] = 0;
     });
-
-    await Promise.all([
-      fs.promises.writeFile('./temp/triumphs.temp.json', JSON.stringify(StatsTriumphs)), //
-      fs.promises.writeFile('./temp/collections.temp.json', JSON.stringify(StatsCollections)),
-      fs.promises.writeFile('./temp/parallel-program.temp.json', JSON.stringify(StatsParallelProgram)),
-    ]);
   }
 }
 
