@@ -261,7 +261,7 @@ function processResponse(member, response) {
               PreparedValues.lastPlayed,
               PreparedValues.legacyScore,
               PreparedValues.activeScore,
-              collections.length
+              collections.length,
             ]
           )
         );
@@ -272,17 +272,38 @@ function processResponse(member, response) {
                 membershipId,
                 presentationNodeHash,
                 completionRecordState,
+                completionDate,
                 gildingRecordState,
+                gildingDate,
                 gildingCompletedCount
               )
             VALUES ?
+            ON DUPLICATE KEY UPDATE
+              date = VALUES(date),
+              completionRecordState = COALESCE(VALUES(completionRecordState), completionRecordState),
+              completionDate = COALESCE(completionDate, VALUES(completionDate)),
+              gildingRecordState = COALESCE(VALUES(gildingRecordState), gildingRecordState),
+              gildingDate = COALESCE(gildingDate, VALUES(gildingDate)),
+              gildingCompletedCount = COALESCE(VALUES(gildingCompletedCount), gildingCompletedCount)
             `,
             [
-              seals(response).map((seal) => ([
-                scrapeStart,
-                member.membershipId,
-                ...seal,
-              ]))
+              seals(response).map(
+                ([
+                  presentationNodeHash, //
+                  completionRecordState,
+                  gildingRecordState,
+                  gildingCompletedCount,
+                ]) => [
+                  scrapeStart, //
+                  member.membershipId,
+                  presentationNodeHash,
+                  completionRecordState,
+                  ((completionRecordState ?? 4) & 4) === 0 ? date : null,
+                  gildingRecordState,
+                  ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
+                  gildingCompletedCount,
+                ]
+              ),
             ]
           )
         );
