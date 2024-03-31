@@ -427,27 +427,22 @@ async function updateLog() {
               SELECT membershipId,
                 ROW_NUMBER() OVER (
                     ORDER BY activeRank,
-                      collectionRank,
                       displayName
                 ) AS activePosition,
                 ROW_NUMBER() OVER (
                     ORDER BY sealRank,
-                      activeRank,
                       displayName
                 ) AS sealPosition,
                 ROW_NUMBER() OVER (
                     ORDER BY gildRank,
-                      activeRank,
                       displayName
                 ) AS gildPosition,
                 ROW_NUMBER() OVER (
                     ORDER BY legacyRank,
-                      collectionRank,
                       displayName
                 ) AS legacyPosition,
                 ROW_NUMBER() OVER (
                     ORDER BY collectionRank,
-                      activeRank,
                       displayName
                 ) AS collectionPosition
               FROM leaderboards.ranks
