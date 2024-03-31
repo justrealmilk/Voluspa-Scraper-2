@@ -5,7 +5,7 @@ import mysql from 'mysql2';
 import pQueue from 'p-queue';
 
 import { customFetch } from './requestUtils.js';
-import { basic, seals } from './dataUtils.js';
+import { basic, fishing, seals } from './dataUtils.js';
 
 dotenv.config();
 
@@ -73,7 +73,7 @@ async function processJob({ member, retries }) {
     const processStart = new Date().toISOString();
 
     const fetchStart = performance.now();
-    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${member.membershipType}/Profile/${member.membershipId}/?components=100,800,900`);
+    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${member.membershipType}/Profile/${member.membershipId}/?components=100,800,900,1100`);
     const fetchEnd = performance.now();
 
     const computeStart = performance.now();
@@ -254,9 +254,7 @@ function processResponse(member, response) {
               PreparedValues.activeScore,
               collections.length,
             ]
-          )
-        );
-        pool.query(
+          ),
           mysql.format(
             `INSERT INTO profiles.members_seals (
                 date,
@@ -293,6 +291,49 @@ function processResponse(member, response) {
                   gildingRecordState,
                   ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
                   gildingCompletedCount,
+                ]
+              ),
+            ]
+          ),
+          mysql.format(
+            `INSERT INTO profiles.members_fishing (
+                date,
+                membershipId,
+                caught,
+                maxWeight,
+                aeonianAlphaBetta,
+                whisperingMothcarp,
+                vexingPlacoderm,
+                kheprianAxehead,
+              )
+            VALUES ?
+            ON DUPLICATE KEY UPDATE
+              date = VALUES(date),
+              caught = COALESCE(VALUES(caught), caught),
+              maxWeight = COALESCE(VALUES(maxWeight), maxWeight),
+              aeonianAlphaBetta = COALESCE(VALUES(aeonianAlphaBetta), aeonianAlphaBetta),
+              whisperingMothcarp = COALESCE(VALUES(whisperingMothcarp), whisperingMothcarp),
+              vexingPlacoderm = COALESCE(VALUES(vexingPlacoderm), vexingPlacoderm),
+              kheprianAxehead = COALESCE(VALUES(kheprianAxehead), kheprianAxehead)
+            `,
+            [
+              fishing(response).map(
+                ([
+                  caught, //
+                  maxWeight,
+                  aeonianAlphaBetta,
+                  whisperingMothcarp,
+                  vexingPlacoderm,
+                  kheprianAxehead,
+                ]) => [
+                  scrapeStart, //
+                  member.membershipId,
+                  caught,
+                  maxWeight,
+                  aeonianAlphaBetta,
+                  whisperingMothcarp,
+                  vexingPlacoderm,
+                  kheprianAxehead,
                 ]
               ),
             ]

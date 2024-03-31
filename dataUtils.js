@@ -371,6 +371,18 @@ export function defaultCharacterId(response) {
   }
 }
 
+function recordComponent(response, hash, scope) {
+  const characterId = response.Response.profile.data.characterIds[0];
+
+  const record = scope === 1 ? response.Response.characterRecords.data[characterId].records[hash] : response.Response.profileRecords.data.records[hash];
+
+  return record;
+}
+
+function metricComponent(response, hash) {
+  return response.Response.metrics.data.metrics[hash].objectiveProgress.progress;
+}
+
 export function seals(response) {
   const characterId = response.Response.profile.data.characterIds[0];
 
@@ -378,11 +390,11 @@ export function seals(response) {
     const states = [];
 
     for (const { presentationNodeHash, completionRecordHash, gildingTrackingRecordHash, scope } of sealPresentationNodeHashes) {
-      const completionRecord = scope === 1 ? response.Response.characterRecords.data[characterId].records[completionRecordHash] : response.Response.profileRecords.data.records[completionRecordHash];
-      const gildingRecord = scope === 1 ? response.Response.characterRecords.data[characterId].records[gildingTrackingRecordHash] : response.Response.profileRecords.data.records[gildingTrackingRecordHash];
+      const completionRecord = recordComponent(response, completionRecordHash, scope);
+      const gildingRecord = recordComponent(response, gildingTrackingRecordHash, scope);
 
       states.push([
-        presentationNodeHash,
+        presentationNodeHash, //
         completionRecord.state,
         gildingRecord?.state,
         gildingRecord?.completedCount,
@@ -390,6 +402,23 @@ export function seals(response) {
     }
 
     return states;
+  } else {
+    return null;
+  }
+}
+
+export function fishing(response) {
+  const characterId = response.Response.profile.data.characterIds[0];
+
+  if (characterId !== undefined) {
+    return {
+      caught: recordComponent(response, 1000033600, 1),
+      maxWeight: metricComponent(response, 2691615711),
+      kheprianAxehead: recordComponent(response, 3045091722, 1),
+      vexingPlacoderm: recordComponent(response, 4065264321, 1),
+      whisperingMothcarp: recordComponent(response, 3821744120, 1),
+      aeonianAlphaBetta: recordComponent(response, 3215008487, 1),
+    };
   } else {
     return null;
   }
