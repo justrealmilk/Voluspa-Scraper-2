@@ -558,9 +558,11 @@ async function updateLog() {
           r.gildPercentile = p.gildPercentile,
           r.legacyPercentile = p.legacyPercentile,
           r.collectionPercentile = p.collectionPercentile;
+
+        UPDATE leaderboards.config SET date = ?, total = (SELECT COUNT(*) as total FROM leaderboards.ranks) WHERE id = 1;
         
         COMMIT;`,
-        [scrapeStart]
+        [scrapeStart, scrapeStart]
       );
 
       const statsTriumphsQuery = mysql.format(`INSERT INTO profiles.commonality (date, hash, value) VALUES ?;`, [Object.entries(StatsTriumphs).map(([hash, value]) => [scrapeStart, hash, value])]);
