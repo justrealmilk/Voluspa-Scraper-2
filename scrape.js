@@ -242,7 +242,7 @@ function processResponse(member, response) {
               lastPlayed = VALUES(lastPlayed),
               legacyScore = VALUES(legacyScore),
               activeScore = VALUES(activeScore),
-              collectionScore = VALUES(collectionScore)
+              collectionScore = VALUES(collectionScore);
             `,
             [
               member.membershipType, //
@@ -254,9 +254,9 @@ function processResponse(member, response) {
               PreparedValues.activeScore,
               collections.length,
             ]
-          ),
-          mysql.format(
-            `INSERT INTO profiles.members_seals (
+          ) +
+            mysql.format(
+              `INSERT INTO profiles.members_seals (
                 date,
                 membershipId,
                 presentationNodeHash,
@@ -273,30 +273,30 @@ function processResponse(member, response) {
               completionDate = COALESCE(completionDate, VALUES(completionDate)),
               gildingRecordState = COALESCE(VALUES(gildingRecordState), gildingRecordState),
               gildingDate = COALESCE(gildingDate, VALUES(gildingDate)),
-              gildingCompletedCount = COALESCE(VALUES(gildingCompletedCount), gildingCompletedCount)
+              gildingCompletedCount = COALESCE(VALUES(gildingCompletedCount), gildingCompletedCount);
             `,
-            [
-              seals(response).map(
-                ([
-                  presentationNodeHash, //
-                  completionRecordState,
-                  gildingRecordState,
-                  gildingCompletedCount,
-                ]) => [
-                  scrapeStart, //
-                  member.membershipId,
-                  presentationNodeHash,
-                  completionRecordState,
-                  ((completionRecordState ?? 4) & 4) === 0 ? date : null,
-                  gildingRecordState,
-                  ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
-                  gildingCompletedCount,
-                ]
-              ),
-            ]
-          ),
-          mysql.format(
-            `INSERT INTO profiles.members_fishing (
+              [
+                seals(response).map(
+                  ([
+                    presentationNodeHash, //
+                    completionRecordState,
+                    gildingRecordState,
+                    gildingCompletedCount,
+                  ]) => [
+                    scrapeStart, //
+                    member.membershipId,
+                    presentationNodeHash,
+                    completionRecordState,
+                    ((completionRecordState ?? 4) & 4) === 0 ? date : null,
+                    gildingRecordState,
+                    ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
+                    gildingCompletedCount,
+                  ]
+                ),
+              ]
+            ) +
+            mysql.format(
+              `INSERT INTO profiles.members_fishing (
                 date,
                 membershipId,
                 caught,
@@ -304,9 +304,9 @@ function processResponse(member, response) {
                 aeonianAlphaBetta,
                 whisperingMothcarp,
                 vexingPlacoderm,
-                kheprianAxehead,
+                kheprianAxehead
               )
-            VALUES ?
+            VALUES (?)
             ON DUPLICATE KEY UPDATE
               date = VALUES(date),
               caught = COALESCE(VALUES(caught), caught),
@@ -314,30 +314,21 @@ function processResponse(member, response) {
               aeonianAlphaBetta = COALESCE(VALUES(aeonianAlphaBetta), aeonianAlphaBetta),
               whisperingMothcarp = COALESCE(VALUES(whisperingMothcarp), whisperingMothcarp),
               vexingPlacoderm = COALESCE(VALUES(vexingPlacoderm), vexingPlacoderm),
-              kheprianAxehead = COALESCE(VALUES(kheprianAxehead), kheprianAxehead)
+              kheprianAxehead = COALESCE(VALUES(kheprianAxehead), kheprianAxehead);
             `,
-            [
-              fishing(response).map(
-                ([
-                  caught, //
-                  maxWeight,
-                  aeonianAlphaBetta,
-                  whisperingMothcarp,
-                  vexingPlacoderm,
-                  kheprianAxehead,
-                ]) => [
+              [
+                [
                   scrapeStart, //
                   member.membershipId,
-                  caught,
-                  maxWeight,
-                  aeonianAlphaBetta,
-                  whisperingMothcarp,
-                  vexingPlacoderm,
-                  kheprianAxehead,
-                ]
-              ),
-            ]
-          )
+                  fishing(response).caught,
+                  fishing(response).maxWeight,
+                  fishing(response).aeonianAlphaBetta,
+                  fishing(response).whisperingMothcarp,
+                  fishing(response).vexingPlacoderm,
+                  fishing(response).kheprianAxehead,
+                ],
+              ]
+            )
         );
       }
 
@@ -396,11 +387,15 @@ async function updateLog() {
               gildScore,
               legacyScore,
               collectionScore,
+              fishCaught,
+              fishMaxWeight,
               activeRank,
               sealRank,
               gildRank,
               legacyRank,
-              collectionRank
+              collectionRank,
+              fishCaughtRank,
+              fishMaxWeightRank
           ) (
               SELECT R.membershipType,
                 R.membershipId,
@@ -410,31 +405,45 @@ async function updateLog() {
                 R.gildScore,
                 R.legacyScore,
                 R.collectionScore,
+                R.fishCaught,
+                R.fishMaxWeight,
                 R.activeRank,
                 R.sealRank,
                 R.gildRank,
                 R.legacyRank,
-                R.collectionRank
+                R.collectionRank,
+                R.fishCaughtRank,
+                R.fishMaxWeightRank
               FROM (
                     SELECT members.*,
                       members_seals.sealScore,
                       members_seals.gildScore,
-                      DENSE_RANK() OVER (
-                          ORDER BY members.legacyScore DESC
-                      ) AS legacyRank,
+                      members_fishing.caught as fishCaught,
+                      members_fishing.maxWeight as fishMaxWeight,
                       DENSE_RANK() OVER (
                           ORDER BY members.activeScore DESC
                       ) AS activeRank,
-                      DENSE_RANK() OVER (
-                          ORDER BY members.collectionScore DESC
-                      ) AS collectionRank,
                       DENSE_RANK() OVER (
                           ORDER BY members_seals.sealScore DESC
                       ) AS sealRank,
                       DENSE_RANK() OVER (
                           ORDER BY members_seals.gildScore DESC
-                      ) AS gildRank
+                      ) AS gildRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members.legacyScore DESC
+                      ) AS legacyRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members.collectionScore DESC
+                      ) AS collectionRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members_fishing.caught DESC
+                      ) AS fishCaughtRank,
+                      DENSE_RANK() OVER (
+                          ORDER BY members_fishing.maxWeight DESC
+                      ) AS fishMaxWeightRank
                     FROM profiles.members AS members
+                      JOIN profiles.members_fishing AS members_fishing 
+                        ON members.membershipId = members_fishing.membershipId
                       JOIN (
                           SELECT membershipId,
                             COUNT(
@@ -445,7 +454,8 @@ async function updateLog() {
                             SUM(gildingCompletedCount) AS gildScore
                           FROM profiles.members_seals as s
                           GROUP BY membershipId
-                      ) AS members_seals ON members.membershipId = members_seals.membershipId
+                      ) AS members_seals 
+                        ON members.membershipId = members_seals.membershipId
                     WHERE members.lastUpdated >= ?
                       AND members.lastPlayed > '2023-02-28 17:00:00'
                     ORDER BY members.displayName ASC
@@ -457,11 +467,15 @@ async function updateLog() {
           gildScore = R.gildScore,
           legacyScore = R.legacyScore,
           collectionScore = R.collectionScore,
+          fishCaught = R.fishCaught,
+          fishMaxWeight = R.fishMaxWeight,
           activeRank = R.activeRank,
           sealRank = R.sealRank,
           gildRank = R.gildRank,
           legacyRank = R.legacyRank,
-          collectionRank = R.collectionRank;
+          collectionRank = R.collectionRank,
+          fishCaughtRank = R.fishCaughtRank,
+          fishMaxWeightRank = R.fishMaxWeightRank;
         
         UPDATE leaderboards.ranks r
           INNER JOIN (
@@ -485,49 +499,59 @@ async function updateLog() {
                 ROW_NUMBER() OVER (
                     ORDER BY collectionRank,
                       displayName
-                ) AS collectionPosition
+                ) AS collectionPosition,
+                ROW_NUMBER() OVER (
+                    ORDER BY fishCaughtRank,
+                      displayName
+                ) AS fishCaughtPosition,
+                ROW_NUMBER() OVER (
+                    ORDER BY fishMaxWeightRank,
+                      displayName
+                ) AS fishMaxWeightPosition
               FROM leaderboards.ranks
           ) p ON p.membershipId = r.membershipId
         SET r.activePosition = p.activePosition,
           r.sealPosition = p.sealPosition,
           r.gildPosition = p.gildPosition,
           r.legacyPosition = p.legacyPosition,
-          r.collectionPosition = p.collectionPosition;
+          r.collectionPosition = p.collectionPosition,
+          r.fishCaughtPosition = p.fishCaughtPosition,
+          r.fishMaxWeightPosition = p.fishMaxWeightPosition;
         
         UPDATE leaderboards.ranks r
           INNER JOIN (
-             SELECT membershipId,
+              SELECT membershipId,
                 ROUND(
-                   PERCENT_RANK() OVER (
+                    PERCENT_RANK() OVER (
                       ORDER BY activeScore DESC
-                   ),
-                   2
+                    ),
+                    2
                 ) activePercentile,
                 ROUND(
-                   PERCENT_RANK() OVER (
+                    PERCENT_RANK() OVER (
                       ORDER BY sealScore DESC
-                   ),
-                   2
+                    ),
+                    2
                 ) sealPercentile,
                 ROUND(
-                   PERCENT_RANK() OVER (
+                    PERCENT_RANK() OVER (
                       ORDER BY gildScore DESC
-                   ),
-                   2
+                    ),
+                    2
                 ) gildPercentile,
                 ROUND(
-                   PERCENT_RANK() OVER (
+                    PERCENT_RANK() OVER (
                       ORDER BY legacyScore DESC
-                   ),
-                   2
+                    ),
+                    2
                 ) legacyPercentile,
                 ROUND(
-                   PERCENT_RANK() OVER (
+                    PERCENT_RANK() OVER (
                       ORDER BY collectionScore DESC
-                   ),
-                   2
+                    ),
+                    2
                 ) collectionPercentile
-             FROM leaderboards.ranks
+              FROM leaderboards.ranks
           ) p ON p.membershipId = r.membershipId
         SET r.activePercentile = p.activePercentile,
           r.sealPercentile = p.sealPercentile,

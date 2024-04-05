@@ -379,8 +379,12 @@ function recordComponent(response, hash, scope) {
   return record;
 }
 
+function getProgessFromComponent(record) {
+  return record?.objectives?.[0]?.progress ?? record?.intervalObjectives?.[0]?.progress;
+}
+
 function metricComponent(response, hash) {
-  return response.Response.metrics.data.metrics[hash].objectiveProgress.progress;
+  return response.Response.metrics.data.metrics[hash];
 }
 
 export function seals(response) {
@@ -412,12 +416,12 @@ export function fishing(response) {
 
   if (characterId !== undefined) {
     return {
-      caught: recordComponent(response, 1000033600, 1),
-      maxWeight: metricComponent(response, 2691615711),
-      kheprianAxehead: recordComponent(response, 3045091722, 1),
-      vexingPlacoderm: recordComponent(response, 4065264321, 1),
-      whisperingMothcarp: recordComponent(response, 3821744120, 1),
-      aeonianAlphaBetta: recordComponent(response, 3215008487, 1),
+      caught: getProgessFromComponent(recordComponent(response, 1000033600, 0)) ?? 0,
+      maxWeight: metricComponent(response, 2691615711).objectiveProgress.progress ?? 0,
+      whisperingMothcarp: getProgessFromComponent(recordComponent(response, 3821744120, 1)) ?? 0,
+      aeonianAlphaBetta: getProgessFromComponent(recordComponent(response, 3215008487, 1)) ?? 0,
+      vexingPlacoderm: getProgessFromComponent(recordComponent(response, 4065264321, 1)) ?? 0,
+      kheprianAxehead: getProgessFromComponent(recordComponent(response, 3045091722, 1)) ?? 0,
     };
   } else {
     return null;
