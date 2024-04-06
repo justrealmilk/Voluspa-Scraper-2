@@ -481,32 +481,25 @@ async function updateLog() {
           INNER JOIN (
               SELECT membershipId,
                 ROW_NUMBER() OVER (
-                    ORDER BY activeRank,
-                      displayName
+                    ORDER BY activeRank, sealRank, gildRank, legacyRank, collectionRank, displayName
                 ) AS activePosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY sealRank,
-                      displayName
+                    ORDER BY sealRank, activeRank, gildRank, legacyRank, collectionRank, displayName
                 ) AS sealPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY gildRank,
-                      displayName
+                    ORDER BY gildRank, activeRank, sealRank, legacyRank, collectionRank, displayName
                 ) AS gildPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY legacyRank,
-                      displayName
+                    ORDER BY legacyRank, activeRank, sealRank, gildRank, collectionRank, displayName
                 ) AS legacyPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY collectionRank,
-                      displayName
+                    ORDER BY collectionRank, activeRank, sealRank, gildRank, legacyRank, displayName
                 ) AS collectionPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY fishCaughtRank,
-                      displayName
+                    ORDER BY fishCaughtRank, fishCaught DESC, displayName
                 ) AS fishCaughtPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY fishMaxWeightRank,
-                      displayName
+                    ORDER BY fishMaxWeightRank, fishMaxWeight DESC, displayName
                 ) AS fishMaxWeightPosition
               FROM leaderboards.ranks
           ) p ON p.membershipId = r.membershipId
