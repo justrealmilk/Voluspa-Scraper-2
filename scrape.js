@@ -300,7 +300,7 @@ function processResponse(member, response) {
                 date,
                 membershipId,
                 caught,
-                maxWeight,
+                weight,
                 aeonianAlphaBetta,
                 whisperingMothcarp,
                 vexingPlacoderm,
@@ -310,7 +310,7 @@ function processResponse(member, response) {
             ON DUPLICATE KEY UPDATE
               date = VALUES(date),
               caught = COALESCE(VALUES(caught), caught),
-              maxWeight = COALESCE(VALUES(maxWeight), maxWeight),
+              weight = COALESCE(VALUES(weight), weight),
               aeonianAlphaBetta = COALESCE(VALUES(aeonianAlphaBetta), aeonianAlphaBetta),
               whisperingMothcarp = COALESCE(VALUES(whisperingMothcarp), whisperingMothcarp),
               vexingPlacoderm = COALESCE(VALUES(vexingPlacoderm), vexingPlacoderm),
@@ -419,7 +419,7 @@ async function updateLog() {
                       members_seals.sealScore,
                       members_seals.gildScore,
                       members_fishing.caught as fishCaught,
-                      members_fishing.maxWeight as fishWeight,
+                      members_fishing.weight as fishWeight,
                       DENSE_RANK() OVER (
                           ORDER BY members.activeScore DESC
                       ) AS activeRank,
@@ -439,7 +439,7 @@ async function updateLog() {
                           ORDER BY members_fishing.caught DESC
                       ) AS fishCaughtRank,
                       DENSE_RANK() OVER (
-                          ORDER BY members_fishing.maxWeight DESC
+                          ORDER BY members_fishing.weight DESC
                       ) AS fishWeightRank
                     FROM profiles.members AS members
                       JOIN profiles.members_fishing AS members_fishing 
