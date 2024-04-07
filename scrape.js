@@ -321,7 +321,7 @@ function processResponse(member, response) {
                   scrapeStart, //
                   member.membershipId,
                   fishing(response).caught,
-                  fishing(response).maxWeight,
+                  fishing(response).weight,
                   fishing(response).aeonianAlphaBetta,
                   fishing(response).whisperingMothcarp,
                   fishing(response).vexingPlacoderm,
@@ -388,14 +388,14 @@ async function updateLog() {
               legacyScore,
               collectionScore,
               fishCaught,
-              fishMaxWeight,
+              fishWeight,
               activeRank,
               sealRank,
               gildRank,
               legacyRank,
               collectionRank,
               fishCaughtRank,
-              fishMaxWeightRank
+              fishWeightRank
           ) (
               SELECT R.membershipType,
                 R.membershipId,
@@ -406,20 +406,20 @@ async function updateLog() {
                 R.legacyScore,
                 R.collectionScore,
                 R.fishCaught,
-                R.fishMaxWeight,
+                R.fishWeight,
                 R.activeRank,
                 R.sealRank,
                 R.gildRank,
                 R.legacyRank,
                 R.collectionRank,
                 R.fishCaughtRank,
-                R.fishMaxWeightRank
+                R.fishWeightRank
               FROM (
                     SELECT members.*,
                       members_seals.sealScore,
                       members_seals.gildScore,
                       members_fishing.caught as fishCaught,
-                      members_fishing.maxWeight as fishMaxWeight,
+                      members_fishing.maxWeight as fishWeight,
                       DENSE_RANK() OVER (
                           ORDER BY members.activeScore DESC
                       ) AS activeRank,
@@ -440,7 +440,7 @@ async function updateLog() {
                       ) AS fishCaughtRank,
                       DENSE_RANK() OVER (
                           ORDER BY members_fishing.maxWeight DESC
-                      ) AS fishMaxWeightRank
+                      ) AS fishWeightRank
                     FROM profiles.members AS members
                       JOIN profiles.members_fishing AS members_fishing 
                         ON members.membershipId = members_fishing.membershipId
@@ -468,14 +468,14 @@ async function updateLog() {
           legacyScore = R.legacyScore,
           collectionScore = R.collectionScore,
           fishCaught = R.fishCaught,
-          fishMaxWeight = R.fishMaxWeight,
+          fishWeight = R.fishWeight,
           activeRank = R.activeRank,
           sealRank = R.sealRank,
           gildRank = R.gildRank,
           legacyRank = R.legacyRank,
           collectionRank = R.collectionRank,
           fishCaughtRank = R.fishCaughtRank,
-          fishMaxWeightRank = R.fishMaxWeightRank;
+          fishWeightRank = R.fishWeightRank;
         
         UPDATE leaderboards.ranks r
           INNER JOIN (
@@ -499,8 +499,8 @@ async function updateLog() {
                     ORDER BY fishCaughtRank, fishCaught DESC, displayName
                 ) AS fishCaughtPosition,
                 ROW_NUMBER() OVER (
-                    ORDER BY fishMaxWeightRank, fishMaxWeight DESC, displayName
-                ) AS fishMaxWeightPosition
+                    ORDER BY fishWeightRank, fishWeight DESC, displayName
+                ) AS fishWeightPosition
               FROM leaderboards.ranks
           ) p ON p.membershipId = r.membershipId
         SET r.activePosition = p.activePosition,
@@ -509,7 +509,7 @@ async function updateLog() {
           r.legacyPosition = p.legacyPosition,
           r.collectionPosition = p.collectionPosition,
           r.fishCaughtPosition = p.fishCaughtPosition,
-          r.fishMaxWeightPosition = p.fishMaxWeightPosition;
+          r.fishWeightPosition = p.fishWeightPosition;
         
         UPDATE leaderboards.ranks r
           INNER JOIN (
