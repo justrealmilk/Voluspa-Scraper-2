@@ -410,20 +410,3 @@ export function seals(response) {
     return null;
   }
 }
-
-export function fishing(response) {
-  const characterId = response.Response.profile.data.characterIds[0];
-
-  if (characterId !== undefined) {
-    return {
-      caught: getProgessFromComponent(recordComponent(response, 1000033600, 0)) ?? 0,
-      weight: metricComponent(response, 2691615711).objectiveProgress.progress ?? 0,
-      aeonianAlphaBetta: getProgessFromComponent(recordComponent(response, 3215008487, 1)) ?? 0,
-      kheprianAxehead: getProgessFromComponent(recordComponent(response, 3045091722, 0)) ?? 0,
-      vexingPlacoderm: getProgessFromComponent(recordComponent(response, 4065264321, 1)) ?? 0,
-      whisperingMothcarp: getProgessFromComponent(recordComponent(response, 3821744120, 1)) ?? 0,
-    };
-  } else {
-    return null;
-  }
-}
