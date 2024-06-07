@@ -73,7 +73,7 @@ async function processJob({ member, retries }) {
     const processStart = new Date().toISOString();
 
     const fetchStart = performance.now();
-    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${member.membershipType}/Profile/${member.membershipId}/?components=100,800,900,1100`);
+    const response = await customFetch(`https://www.bungie.net/Platform/Destiny2/${member.membershipType}/Profile/${member.membershipId}/?components=100,800,900`);
     const fetchEnd = performance.now();
 
     const computeStart = performance.now();
