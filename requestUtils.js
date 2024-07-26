@@ -1,6 +1,7 @@
 import https from 'https';
 import dotenv from 'dotenv';
 import got from 'got';
+import simdjson from 'simdjson';
 import { P2cBalancer } from 'load-balancers';
 
 dotenv.config();
@@ -48,8 +49,10 @@ function createInstance(localAddress) {
 export async function customFetch(url) {
   const instance = instances[balancer.pick()];
 
-  return instance.get(url, {
-    responseType: 'json',
-    resolveBodyOnly: true,
-  });
+  return instance
+    .get(url, {
+      responseType: 'text',
+      resolveBodyOnly: true,
+    })
+    .then((text) => simdjson.lazyParse(text));
 }
