@@ -45,7 +45,7 @@ const pool = puddle.promise();
 
 // get a list of members to fetch profile data for
 console.log('Querying braytech.members');
-const [members] = await pool.query('SELECT id, membershipType, membershipId FROM braytech.members WHERE NOT isPrivate LIMIT 0, 1000000');
+const [members] = await pool.query('SELECT id, membershipType, membershipId, IFNULL(last, NOW()) AS last FROM braytech.members WHERE NOT isPrivate ORDER BY last DESC LIMIT 0, 1000000');
 console.log('Results received');
 
 // empty objects to hold statistics for later
