@@ -45,7 +45,7 @@ const pool = puddle.promise();
 
 // get a list of members to fetch profile data for
 console.log('Querying braytech.members');
-const [members] = await pool.query('SELECT id, membershipType, membershipId, IFNULL(last, NOW()) AS last FROM braytech.members WHERE NOT isPrivate ORDER BY last DESC LIMIT 0, 1000000');
+const [members] = await pool.query('SELECT id, membershipType, membershipId, first, IFNULL(last, NOW()) AS last FROM braytech.members WHERE NOT isPrivate ORDER BY last DESC LIMIT 0, 1000000');
 console.log('Results received');
 
 // empty objects to hold statistics for later
@@ -67,6 +67,7 @@ members.forEach((member) => {
 });
 
 const results = [];
+const firstSeen = [];
 
 async function processJob({ member, retries }) {
   try {
@@ -221,12 +222,14 @@ function processResponse(member, response) {
       const date = new Date();
 
       if (storeScrapeResults) {
-        pool.query(
-          mysql.format(
-            `INSERT INTO profiles.members (
+        pool
+          .query(
+            mysql.format(
+              `INSERT INTO profiles.members (
                 membershipType,
                 membershipId,
                 displayName,
+                firstSeen,
                 lastUpdated,
                 lastPlayed,
                 legacyScore,
@@ -234,7 +237,7 @@ function processResponse(member, response) {
                 collectionScore
               )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?
               )
             ON DUPLICATE KEY UPDATE
               displayName = VALUES(displayName),
@@ -244,19 +247,20 @@ function processResponse(member, response) {
               activeScore = VALUES(activeScore),
               collectionScore = VALUES(collectionScore);
             `,
-            [
-              member.membershipType, //
-              member.membershipId,
-              PreparedValues.displayName,
-              date,
-              PreparedValues.lastPlayed,
-              PreparedValues.legacyScore,
-              PreparedValues.activeScore,
-              collections.length,
-            ]
-          ) +
-            mysql.format(
-              `INSERT INTO profiles.members_seals (
+              [
+                member.membershipType, //
+                member.membershipId,
+                PreparedValues.displayName,
+                member.firstSeen,
+                date,
+                PreparedValues.lastPlayed,
+                PreparedValues.legacyScore,
+                PreparedValues.activeScore,
+                collections.length,
+              ]
+            ) +
+              mysql.format(
+                `INSERT INTO profiles.members_seals (
                 date,
                 membershipId,
                 presentationNodeHash,
@@ -275,27 +279,39 @@ function processResponse(member, response) {
               gildingDate = COALESCE(gildingDate, VALUES(gildingDate)),
               gildingCompletedCount = COALESCE(VALUES(gildingCompletedCount), gildingCompletedCount);
             `,
-              [
-                seals(response).map(
-                  ([
-                    presentationNodeHash, //
-                    completionRecordState,
-                    gildingRecordState,
-                    gildingCompletedCount,
-                  ]) => [
-                    scrapeStart, //
-                    member.membershipId,
-                    presentationNodeHash,
-                    completionRecordState,
-                    ((completionRecordState ?? 4) & 4) === 0 ? date : null,
-                    gildingRecordState,
-                    ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
-                    gildingCompletedCount,
-                  ]
-                ),
-              ]
-            )
-        );
+                [
+                  seals(response).map(
+                    ([
+                      presentationNodeHash, //
+                      completionRecordState,
+                      gildingRecordState,
+                      gildingCompletedCount,
+                    ]) => [
+                      scrapeStart, //
+                      member.membershipId,
+                      presentationNodeHash,
+                      completionRecordState,
+                      ((completionRecordState ?? 4) & 4) === 0 ? date : null,
+                      gildingRecordState,
+                      ((gildingRecordState ?? 4) & 4) === 0 ? date : null,
+                      gildingCompletedCount,
+                    ]
+                  ),
+                ]
+              )
+          )
+          .then((data) => {
+
+            if (data.affectedRows === 1) {
+              firstSeen.push({
+                ...member,
+                displayName: PreparedValues.displayName,
+                date,
+              });
+
+              console.log(member, PreparedValues.displayName, data);
+            }
+          });
       }
 
       return 'success';
@@ -524,6 +540,18 @@ async function updateLog() {
         },
       });
       console.log('Cached commonality...');
+
+      await fetch('https://b.vlsp.network/Discord/Updates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'pineapple7',
+          'x-version': '7100/prod',
+        },
+        body: JSON.stringify({
+          description: `New Destiny profiles discovered: ${firstSeen.map((member) => member.displayName).join(', ')}`,
+        }),
+      }).catch((error) => console.error(error))
     }
 
     process.exit();
